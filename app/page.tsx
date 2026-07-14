@@ -1,65 +1,119 @@
 import Image from "next/image";
+import {
+  Footprints,
+  Headphones,
+  Shirt,
+  Tv,
+  Wallet,
+  Watch,
+  Wind,
+} from "lucide-react";
 
-export default function Home() {
+import { BottomNav } from "./_components/bottom-nav";
+import { PartnerStrip } from "./_components/partner-strip";
+import { ProductCard } from "./_components/product-card";
+import { PromoMarquee } from "./_components/promo-marquee";
+import { TopBar } from "./_components/top-bar";
+
+const products = [
+  {
+    id: "1",
+    title: "JAM TANGAN ALEXANDRE CHRISTIE AC 8161 COUPLE MURAH.",
+    price: "Rp2.350.000",
+    href: "/product/jam-tangan-alexandre",
+    icon: Watch,
+  },
+  {
+    id: "2",
+    title: "SMILE&ART Junior Hoodie II SMILE&ART Sweater Hoodie II Sweater Olbring…",
+    price: "Rp38.950",
+    href: "/product/smile-art-hoodie",
+    icon: Shirt,
+  },
+  {
+    id: "3",
+    title: "TZ BAJU SWEATSHIRT PRIA PR SANTAI GUNUNG DISTRO KEREN M…",
+    price: "Rp38.461",
+    href: "/product/tz-sweatshirt",
+    icon: Shirt,
+  },
+  {
+    id: "4",
+    title: "TTWS M19 HEADSET",
+    price: "Rp31.500",
+    href: "/product/ttws-headset",
+    icon: Headphones,
+  },
+  {
+    id: "5",
+    title: "DWEBLIES kipas mini portable angin kipas L size Portable Digital Display…",
+    price: "Rp69.000",
+    href: "/product/dweblies-fan",
+    icon: Wind,
+  },
+  {
+    id: "6",
+    title: "Dompet Wanita Aurora Bordir Premium Berkualitas Dompet Pendek Genggam",
+    price: "Rp15.900",
+    href: "/product/dompet-aurora",
+    icon: Wallet,
+  },
+  {
+    id: "7",
+    title: "MXQ PRO Android TV Box 4K HD Smart Set Top Box 64GB Ram 512GB Rom…",
+    price: "Rp184.900",
+    href: "/product/mxq-pro",
+    icon: Tv,
+  },
+  {
+    id: "8",
+    title: "Sandal Pria keren Sandal slip on Pria santai Gunung Pria original 100 cowok k…",
+    price: "Rp102.900",
+    href: "/product/sandal-pria",
+    icon: Footprints,
+  },
+];
+
+export default function HomePage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-full bg-zinc-50 pb-28">
+      <TopBar />
+
+      <div className="mx-auto max-w-2xl px-4 sm:px-6">
+        <div className="mt-3 overflow-hidden rounded-2xl sm:mt-4">
+          <Image
+            src="/banner.webp"
+            alt="Dekorasi Toko"
+            width={1024}
+            height={409}
+            priority
+            className="h-auto w-full"
+          />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+
+        <PromoMarquee />
+
+        <div className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-5 sm:gap-3">
+          {products.map(({ id, title, price, href, icon: Icon }) => (
+            <ProductCard
+              key={id}
+              title={title}
+              price={price}
+              href={href}
+              imageSlot={
+                <Icon
+                  className="size-10 text-zinc-300 sm:size-14"
+                  strokeWidth={1.4}
+                />
+              }
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          ))}
         </div>
-      </main>
+
+        <PartnerStrip />
+      </div>
+
+      <BottomNav />
     </div>
   );
 }
