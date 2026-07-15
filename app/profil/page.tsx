@@ -7,7 +7,6 @@ import {
   KeyRound,
   Landmark,
   LogOut,
-  Settings,
   Wallet,
 } from "lucide-react";
 
@@ -50,22 +49,17 @@ export default function ProfilPage() {
           <ActionRow
             icon={FileText}
             label="Riwayat Penarikan"
-            href="/profil/withdraw-history"
+            href="/profil/withdrawlist"
           />
           <ActionRow
             icon={History}
             label="Riwayat Isi Ulang"
-            href="/profil/recharge-history"
+            href="/profil/rechargelist"
           />
           <ActionRow
             icon={Bell}
             label="Pemberitahuan"
             href="/profil/notification"
-          />
-          <ActionRow
-            icon={Settings}
-            label="Pengaturan"
-            href="/profil/settings"
           />
           <ActionRow
             icon={KeyRound}
