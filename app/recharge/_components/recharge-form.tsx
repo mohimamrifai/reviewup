@@ -1,6 +1,12 @@
 "use client";
 
+import { useActionState, useState } from "react";
 import { Copy, Landmark, ShieldCheck } from "lucide-react";
+
+import {
+  submitDeposit,
+  type DepositState,
+} from "@/lib/actions/deposits";
 
 const bankInfo = {
   bank: "BANK MNC",
@@ -13,19 +19,61 @@ const inputClass =
 
 const labelClass = "text-xs font-semibold text-zinc-900 sm:text-sm";
 
+const initialState: DepositState = {};
+
 function formatRupiah(n: number): string {
   return `Rp ${n.toLocaleString("id-ID")}`;
 }
 
+function parseAmount(s: string): number {
+  return Number(s.replace(/[^\d]/g, "")) || 0;
+}
+
 export function RechargeForm() {
+  const [state, formAction, isPending] = useActionState(
+    submitDeposit,
+    initialState,
+  );
+  const [amountDisplay, setAmountDisplay] = useState("");
+  const [copyOk, setCopyOk] = useState(false);
+
+  const amountValue = parseAmount(amountDisplay);
+
   function handleCopy() {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
-      navigator.clipboard.writeText(bankInfo.accountNumber).catch(() => {});
+      navigator.clipboard
+        .writeText(bankInfo.accountNumber)
+        .then(() => {
+          setCopyOk(true);
+          setTimeout(() => setCopyOk(false), 1500);
+        })
+        .catch(() => {});
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  if (state.success) {
+    return (
+      <div className="space-y-3">
+        <div className="overflow-hidden rounded-2xl bg-white p-5 text-center shadow-sm ring-1 ring-zinc-200/60 sm:p-6">
+          <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 sm:size-16">
+            <ShieldCheck className="size-7 sm:size-8" strokeWidth={1.8} />
+          </div>
+          <h2 className="mt-3 text-sm font-bold text-zinc-900 sm:text-base">
+            Pengajuan Berhasil Dikirim
+          </h2>
+          <p className="mt-1 text-xs text-zinc-600 sm:text-sm">
+            Isi ulang Anda sedang menunggu persetujuan admin. Saldo akan masuk
+            setelah disetujui.
+          </p>
+          <a
+            href="/profil/rechargelist"
+            className="mt-4 inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 sm:text-sm"
+          >
+            Lihat Riwayat
+          </a>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -55,10 +103,15 @@ export function RechargeForm() {
             <Copy className="size-4 sm:size-5" />
           </button>
         </div>
+        {copyOk && (
+          <p className="border-t border-zinc-100 bg-emerald-50 px-4 py-1.5 text-center text-[11px] font-medium text-emerald-700 sm:px-5 sm:text-xs">
+            Nomor rekening disalin
+          </p>
+        )}
       </div>
 
       <form
-        onSubmit={handleSubmit}
+        action={formAction}
         className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-200/60"
       >
         <div className="border-b border-l-4 border-l-emerald-500 border-zinc-200 px-4 py-2.5 sm:px-5 sm:py-3">
@@ -77,13 +130,24 @@ export function RechargeForm() {
             </label>
             <input
               id="amount"
+              name="amount"
               type="text"
+              inputMode="numeric"
               placeholder="Minimal Rp 30.000"
+              value={amountDisplay}
+              onChange={(e) =>
+                setAmountDisplay(e.target.value.replace(/[^\d]/g, ""))
+              }
               className={inputClass}
             />
             <p className="mt-1 text-[11px] text-zinc-500 sm:text-xs">
-              {formatRupiah(0)}
+              {formatRupiah(amountValue)}
             </p>
+            {state.fieldErrors?.amount?.[0] && (
+              <p className="mt-1 text-xs text-rose-600">
+                {state.fieldErrors.amount[0]}
+              </p>
+            )}
           </div>
 
           <div>
@@ -95,18 +159,31 @@ export function RechargeForm() {
             </label>
             <input
               id="proof"
+              name="proof"
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/jpg"
               className="block w-full text-xs text-zinc-700 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-emerald-700 hover:file:bg-emerald-100 sm:text-sm sm:file:text-sm"
             />
+            {state.fieldErrors?.proof?.[0] && (
+              <p className="mt-1 text-xs text-rose-600">
+                {state.fieldErrors.proof[0]}
+              </p>
+            )}
           </div>
+
+          {state.error && (
+            <p className="rounded-md bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600 sm:text-sm">
+              {state.error}
+            </p>
+          )}
 
           <button
             type="submit"
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 active:bg-emerald-800 sm:py-3 sm:text-sm"
+            disabled={isPending}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-60 sm:py-3 sm:text-sm"
           >
             <ShieldCheck className="size-4" />
-            Kirimkan
+            {isPending ? "Mengirim..." : "Kirimkan"}
           </button>
         </div>
       </form>

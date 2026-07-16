@@ -1,21 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { ExternalLink, Pencil, Plus, Search, Send, Trash2 } from "lucide-react";
 
-import {
-  dummyChannels,
-  type Channel,
-  type ChannelType,
-} from "../../../../lib/dummy-channels";
-import { ChannelModal } from "./channel-modal";
+import { deleteChannel } from "@/lib/actions/channels";
 
-const typeLabel: Record<ChannelType, string> = {
+import { ChannelModal, type ChannelInput } from "./channel-modal";
+
+const typeLabel: Record<ChannelInput["type"], string> = {
   whatsapp: "WhatsApp",
   telegram: "Telegram",
 };
 
-const typeBadgeClass: Record<ChannelType, string> = {
+const typeBadgeClass: Record<ChannelInput["type"], string> = {
   whatsapp: "bg-emerald-100 text-emerald-700",
   telegram: "bg-sky-100 text-sky-700",
 };
@@ -35,7 +32,7 @@ const aksiCellClass =
 const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm";
 
-function ChannelIcon({ type }: { type: ChannelType }) {
+function ChannelIcon({ type }: { type: ChannelInput["type"] }) {
   if (type === "whatsapp") {
     return (
       <div className="flex h-10 w-10 items-center justify-center rounded-md bg-emerald-100 text-emerald-600 ring-1 ring-emerald-200/60 sm:h-11 sm:w-11">
@@ -50,10 +47,14 @@ function ChannelIcon({ type }: { type: ChannelType }) {
   );
 }
 
-export function PelayananTable() {
-  const [channels, setChannels] = useState<Channel[]>(dummyChannels);
+export function PelayananTable({
+  initialChannels,
+}: {
+  initialChannels: ChannelInput[];
+}) {
+  const [channels, setChannels] = useState<ChannelInput[]>(initialChannels);
   const [query, setQuery] = useState("");
-  const [editing, setEditing] = useState<Channel | "new" | null>(null);
+  const [editing, setEditing] = useState<ChannelInput | "new" | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
@@ -66,30 +67,10 @@ export function PelayananTable() {
     );
   }, [channels, query]);
 
-  function handleSave(data: {
-    id: number | null;
-    type: ChannelType;
-    label: string;
-    url: string;
-  }) {
-    if (data.id === null) {
-      const nextId = channels.length === 0
-        ? 1
-        : Math.max(...channels.map((c) => c.id)) + 1;
-      setChannels([
-        ...channels,
-        { id: nextId, type: data.type, label: data.label, url: data.url },
-      ]);
-    } else {
-      setChannels(
-        channels.map((c) =>
-          c.id === data.id
-            ? { ...c, type: data.type, label: data.label, url: data.url }
-            : c,
-        ),
-      );
-    }
+  function handleSaved() {
     setEditing(null);
+    // Page will refresh via revalidatePath
+    window.location.reload();
   }
 
   function handleDelete(id: number) {
@@ -97,8 +78,15 @@ export function PelayananTable() {
       const ok = window.confirm("Hapus channel ini?");
       if (!ok) return;
     }
-    setChannels(channels.filter((c) => c.id !== id));
+    const fd = new FormData();
+    fd.set("id", String(id));
+    startDelete(async () => {
+      await deleteChannel({}, fd);
+      setChannels((cur) => cur.filter((c) => c.id !== id));
+    });
   }
+
+  const [, startDelete] = useTransition();
 
   return (
     <div className="space-y-3">
@@ -128,6 +116,7 @@ export function PelayananTable() {
               <th className={headerCellClass}>Jenis</th>
               <th className={headerCellClass}>Label</th>
               <th className={headerCellClass}>URL</th>
+              <th className={headerCellClass}>Status</th>
               <th className={aksiHeaderClass}>Aksi</th>
             </tr>
           </thead>
@@ -135,10 +124,12 @@ export function PelayananTable() {
             {filtered.length === 0 ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   className="px-3 py-8 text-center text-xs text-zinc-500 sm:text-sm"
                 >
-                  Tidak ada channel yang cocok.
+                  {channels.length === 0
+                    ? 'Belum ada channel. Klik "Tambah Channel" untuk mulai.'
+                    : "Tidak ada channel yang cocok."}
                 </td>
               </tr>
             ) : (
@@ -172,6 +163,17 @@ export function PelayananTable() {
                       <ExternalLink className="size-3 shrink-0" />
                     </a>
                   </td>
+                  <td className={cellClass}>
+                    <span
+                      className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold sm:text-xs ${
+                        c.isActive
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-zinc-100 text-zinc-600"
+                      }`}
+                    >
+                      {c.isActive ? "Aktif" : "Non-aktif"}
+                    </span>
+                  </td>
                   <td className={aksiCellClass}>
                     <div className="flex flex-col gap-1">
                       <button
@@ -201,15 +203,11 @@ export function PelayananTable() {
         </table>
       </div>
 
-      <p className="text-[11px] text-zinc-500 sm:text-xs">
-        Data sementara (dummy). Akan diganti database di tahap berikutnya.
-      </p>
-
       {editing !== null && (
         <ChannelModal
           initial={editing === "new" ? null : editing}
-          onSave={handleSave}
           onClose={() => setEditing(null)}
+          onSaved={handleSaved}
         />
       )}
     </div>

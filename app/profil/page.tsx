@@ -9,6 +9,11 @@ import {
   LogOut,
   Wallet,
 } from "lucide-react";
+import { eq } from "drizzle-orm";
+
+import { db } from "@/lib/db";
+import { profiles } from "@/lib/db/schema";
+import { createClient } from "@/lib/supabase/server";
 
 import { ProfileHeader } from "./_components/header";
 import { BalanceCard } from "./_components/balance-card";
@@ -20,13 +25,58 @@ import { SectionCard } from "./_components/section-card";
 import { ActionRow } from "./_components/action-row";
 import { BottomNav } from "../_components/bottom-nav";
 
-export default function ProfilPage() {
+const TIER_LABEL: Record<string, string> = {
+  classic: "Classic",
+  silver: "Silver",
+  gold: "Gold",
+  platinum: "Platinum",
+  diamond: "Diamond",
+  premier: "Premier",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  online: "Online",
+  offline: "Offline",
+  banned: "Banned",
+};
+
+function formatRupiah(value: string | number) {
+  const num = typeof value === "string" ? Number(value) : value;
+  return "Rp " + num.toLocaleString("id-ID", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+
+export default async function ProfilPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const [profile] = user
+    ? await db
+        .select()
+        .from(profiles)
+        .where(eq(profiles.id, user.id))
+        .limit(1)
+    : [];
+
+  const name = profile?.username ?? "Pengguna";
+  const tier = TIER_LABEL[profile?.level ?? "classic"] ?? "Classic";
+  const score = profile?.creditScore ?? 0;
+  const status = STATUS_LABEL[profile?.status ?? "online"] ?? "Online";
+  const balance = profile?.balance ?? "0";
+
   return (
     <div className="min-h-full bg-zinc-50 pb-24">
-      <ProfileHeader name="Testfs" tier="Classic" score={100} status="Online" />
+      <ProfileHeader
+        name={name}
+        tier={tier}
+        score={score}
+        status={status}
+      />
 
       <div className="relative z-10 mx-auto -mt-10 max-w-2xl px-4 sm:-mt-12 sm:px-6">
-        <BalanceCard label="Total Saldo" amount="Rp 35.900" />
+        <BalanceCard label="Total Saldo" amount={formatRupiah(balance)} />
 
         <QuickActions
           items={[

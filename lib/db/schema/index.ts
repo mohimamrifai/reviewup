@@ -6,3 +6,4 @@ export * from "./deposits";
 export * from "./withdrawals";
 export * from "./bank-accounts";
 export * from "./channels";
+export * from "./audit-logs";

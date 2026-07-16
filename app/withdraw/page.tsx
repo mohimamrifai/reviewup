@@ -1,7 +1,53 @@
+import { desc, eq, sql } from "drizzle-orm";
+
+import { db } from "@/lib/db";
+import { bankAccounts, profiles } from "@/lib/db/schema";
+import { createClient } from "@/lib/supabase/server";
+
 import { BottomNav } from "../_components/bottom-nav";
 import { WithdrawContent } from "./_components/withdraw-content";
 
-export default function WithdrawPage() {
+export default async function WithdrawPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return (
+      <div className="flex min-h-full items-center justify-center bg-zinc-50 p-4 text-sm text-zinc-600">
+        Memuat...
+      </div>
+    );
+  }
+
+  const [profile, banks] = await Promise.all([
+    db
+      .select({
+        username: profiles.username,
+        balance: profiles.balance,
+        frozenBalance: profiles.frozenBalance,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1)
+      .then((r) => r[0]),
+    db
+      .select({
+        id: bankAccounts.id,
+        bankName: bankAccounts.bankName,
+        accountName: bankAccounts.accountName,
+        accountNumber: bankAccounts.accountNumber,
+        isPrimary: bankAccounts.isPrimary,
+      })
+      .from(bankAccounts)
+      .where(eq(bankAccounts.userId, user.id))
+      .orderBy(
+        sql`${bankAccounts.isPrimary} DESC`,
+        desc(bankAccounts.createdAt),
+      ),
+  ]);
+
   return (
     <div className="min-h-full bg-zinc-50 pb-24">
       <header className="sticky top-0 z-30 bg-emerald-600 text-white shadow-sm">
@@ -11,7 +57,12 @@ export default function WithdrawPage() {
       </header>
 
       <div className="mx-auto max-w-2xl space-y-3 px-4 py-4 sm:px-6 sm:py-5">
-        <WithdrawContent />
+        <WithdrawContent
+          username={profile?.username ?? "Pengguna"}
+          balance={profile?.balance ?? "0"}
+          frozenBalance={profile?.frozenBalance ?? "0"}
+          banks={banks}
+        />
       </div>
 
       <BottomNav />

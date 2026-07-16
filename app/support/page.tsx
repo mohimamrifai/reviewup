@@ -1,25 +1,42 @@
 import { ArrowLeft, Headphones, Send } from "lucide-react";
 import Link from "next/link";
+import { asc, eq } from "drizzle-orm";
 
-import { dummyChannels, type ChannelType } from "../../lib/dummy-channels";
+import { db } from "@/lib/db";
+import { customerServiceChannels } from "@/lib/db/schema";
+
 import { BottomNav } from "../_components/bottom-nav";
 
-const typeTone: Record<ChannelType, string> = {
+const typeTone: Record<string, string> = {
   whatsapp: "bg-emerald-100 text-emerald-600",
   telegram: "bg-sky-100 text-sky-600",
 };
 
-const typeBadge: Record<ChannelType, string> = {
+const typeBadge: Record<string, string> = {
   whatsapp: "bg-emerald-50 text-emerald-700",
   telegram: "bg-sky-50 text-sky-700",
 };
 
-const typeLabel: Record<ChannelType, string> = {
+const typeLabel: Record<string, string> = {
   whatsapp: "WhatsApp",
   telegram: "Telegram",
 };
 
-export default function SupportPage() {
+export default async function SupportPage() {
+  const channels = await db
+    .select({
+      id: customerServiceChannels.id,
+      type: customerServiceChannels.type,
+      label: customerServiceChannels.label,
+      url: customerServiceChannels.url,
+    })
+    .from(customerServiceChannels)
+    .where(eq(customerServiceChannels.isActive, true))
+    .orderBy(
+      asc(customerServiceChannels.sortOrder),
+      asc(customerServiceChannels.id),
+    );
+
   return (
     <div className="min-h-full bg-zinc-50 pb-24">
       <div className="relative z-0 overflow-hidden rounded-b-3xl bg-brand text-white">
@@ -60,19 +77,19 @@ export default function SupportPage() {
             </p>
           </div>
 
-          {dummyChannels.length === 0 ? (
+          {channels.length === 0 ? (
             <div className="px-4 py-10 text-center text-sm text-zinc-500 sm:py-12">
               Belum ada channel layanan yang tersedia.
             </div>
           ) : (
             <ul className="divide-y divide-zinc-200">
-              {dummyChannels.map((c) => (
+              {channels.map((c) => (
                 <li
                   key={c.id}
                   className="flex items-center gap-3 px-4 py-3.5 sm:px-5 sm:py-4"
                 >
                   <div
-                    className={`flex size-11 shrink-0 items-center justify-center rounded-full sm:size-12 ${typeTone[c.type]}`}
+                    className={`flex size-11 shrink-0 items-center justify-center rounded-full sm:size-12 ${typeTone[c.type] ?? "bg-zinc-100 text-zinc-600"}`}
                   >
                     <Send className="size-5" strokeWidth={1.8} />
                   </div>
@@ -82,9 +99,9 @@ export default function SupportPage() {
                         {c.label}
                       </span>
                       <span
-                        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${typeBadge[c.type]}`}
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${typeBadge[c.type] ?? "bg-zinc-50 text-zinc-700"}`}
                       >
-                        {typeLabel[c.type]}
+                        {typeLabel[c.type] ?? c.type}
                       </span>
                     </div>
                     <p className="mt-0.5 truncate text-xs text-zinc-500">

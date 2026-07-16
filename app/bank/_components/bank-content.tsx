@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Landmark, Plus, Save, X } from "lucide-react";
+import { useActionState, useState, useTransition } from "react";
+import { Landmark, MoreVertical, Plus, Save, Star, Trash2, X } from "lucide-react";
+
+import {
+  addBankAccount,
+  deleteBankAccount,
+  setPrimaryBankAccount,
+  type BankAccountState,
+} from "@/lib/actions/bank-accounts";
 
 const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 sm:text-sm";
@@ -13,24 +20,27 @@ type Bank = {
   bankName: string;
   accountName: string;
   accountNumber: string;
+  backupPhone: string | null;
+  isPrimary: boolean;
 };
 
-const initialBanks: Bank[] = [];
+const initialState: BankAccountState = {};
 
-export function BankContent() {
-  const [banks] = useState<Bank[]>(initialBanks);
+export function BankContent({ banks: initialBanks }: { banks: Bank[] }) {
   const [open, setOpen] = useState(false);
+  const [menuId, setMenuId] = useState<number | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   return (
     <div className="space-y-3">
       <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-200/60">
-        {banks.length === 0 ? (
+        {initialBanks.length === 0 ? (
           <div className="px-4 py-3.5 text-xs text-zinc-700 sm:px-5 sm:py-4 sm:text-sm">
             Belum ada informasi penarikan.
           </div>
         ) : (
           <ul className="divide-y divide-zinc-200">
-            {banks.map((b) => (
+            {initialBanks.map((b) => (
               <li
                 key={b.id}
                 className="flex items-center gap-3 px-4 py-3.5 sm:px-5 sm:py-4"
@@ -39,12 +49,65 @@ export function BankContent() {
                   <Landmark className="size-4 sm:size-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-zinc-900 sm:text-base">
-                    {b.bankName} - {b.accountNumber}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-sm font-semibold text-zinc-900 sm:text-base">
+                      {b.bankName} - {b.accountNumber}
+                    </p>
+                    {b.isPrimary && (
+                      <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                        <Star className="size-2.5 fill-current" />
+                        Utama
+                      </span>
+                    )}
+                  </div>
                   <p className="truncate text-xs text-zinc-500 sm:text-xs">
                     a.n {b.accountName}
                   </p>
+                </div>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMenuId((cur) => (cur === b.id ? null : b.id))
+                    }
+                    aria-label="Menu rekening"
+                    className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900"
+                  >
+                    <MoreVertical className="size-4" />
+                  </button>
+                  {menuId === b.id && (
+                    <div
+                      className="absolute right-0 top-full z-20 mt-1 w-40 overflow-hidden rounded-md border border-zinc-200 bg-white shadow-lg"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {!b.isPrimary && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMenuId(null);
+                            const fd = new FormData();
+                            fd.set("id", String(b.id));
+                            startPrimary(fd);
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-700 transition hover:bg-zinc-50 sm:text-sm"
+                        >
+                          <Star className="size-3.5" />
+                          Jadikan Utama
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuId(null);
+                          setDeleteId(b.id);
+                        }}
+                        className="flex w-full items-center gap-2 border-t border-zinc-100 px-3 py-2 text-left text-xs text-rose-600 transition hover:bg-rose-50 sm:text-sm"
+                      >
+                        <Trash2 className="size-3.5" />
+                        Hapus
+                      </button>
+                    </div>
+                  )}
                 </div>
               </li>
             ))}
@@ -61,56 +124,121 @@ export function BankContent() {
         Menambahkan
       </button>
 
-      {open && <AddBankModal onClose={() => setOpen(false)} />}
+      {open && (
+        <AddBankModal onClose={() => setOpen(false)} onSaved={() => setOpen(false)} />
+      )}
+
+      {deleteId !== null && (
+        <DeleteConfirm
+          id={deleteId}
+          onCancel={() => setDeleteId(null)}
+          onDeleted={() => setDeleteId(null)}
+        />
+      )}
     </div>
   );
 }
 
-function AddBankModal({ onClose }: { onClose: () => void }) {
-  const [bankName, setBankName] = useState("");
-  const [accountName, setAccountName] = useState("");
-  const [accountNumber, setAccountNumber] = useState("");
-  const [backupPhone, setBackupPhone] = useState("");
-  const [error, setError] = useState<string | null>(null);
+function useAddBank() {
+  const [state, formAction, isPending] = useActionState(
+    addBankAccount,
+    initialState,
+  );
+  return { state, formAction, isPending };
+}
 
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", handleKey);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [onClose]);
+function AddBankModal({
+  onClose,
+  onSaved,
+}: {
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { state, formAction, isPending } = useAddBank();
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!bankName.trim() || !accountName.trim() || !accountNumber.trim()) {
-      setError("Semua field wajib diisi.");
-      return;
-    }
-    onClose();
+  return (
+    <ModalShell onClose={onClose} title="Tambah Rekening">
+      <form
+        action={(fd) => {
+          formAction(fd);
+          if (!state.error) onSaved();
+        }}
+        className="space-y-3"
+      >
+        <BankFormFields state={state} />
+        <ModalActions
+          onCancel={onClose}
+          isPending={isPending}
+          submitLabel="Simpan"
+        />
+      </form>
+    </ModalShell>
+  );
+}
+
+function DeleteConfirm({
+  id,
+  onCancel,
+  onDeleted,
+}: {
+  id: number;
+  onCancel: () => void;
+  onDeleted: () => void;
+}) {
+  const [, startTransition] = useTransition();
+
+  function handleDelete() {
+    const fd = new FormData();
+    fd.set("id", String(id));
+    startTransition(async () => {
+      await deleteBankAccount({}, fd);
+      onDeleted();
+    });
   }
 
+  return (
+    <ModalShell onClose={onCancel} title="Hapus Rekening">
+      <p className="text-xs text-zinc-700 sm:text-sm">
+        Yakin ingin menghapus rekening ini? Tindakan ini tidak dapat dibatalkan.
+      </p>
+      <ModalActions
+        onCancel={onCancel}
+        onSubmit={handleDelete}
+        submitLabel="Hapus"
+        submitVariant="danger"
+      />
+    </ModalShell>
+  );
+}
+
+function startPrimary(fd: FormData) {
+  setPrimaryBankAccount({}, fd);
+}
+
+function ModalShell({
+  onClose,
+  title,
+  children,
+}: {
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Tambah rekening"
+      aria-label={title}
       className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-3 sm:p-4"
       onClick={onClose}
     >
-      <form
-        onSubmit={handleSubmit}
+      <div
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl sm:p-5"
       >
         <div className="mb-4 flex items-center justify-between sm:mb-5">
           <h2 className="text-sm font-bold text-zinc-900 sm:text-base">
-            Tambah Rekening
+            {title}
           </h2>
           <button
             type="button"
@@ -121,81 +249,142 @@ function AddBankModal({ onClose }: { onClose: () => void }) {
             <X className="size-4" />
           </button>
         </div>
+        {children}
+      </div>
+    </div>
+  );
+}
 
-        <div className="space-y-3">
-          <label className="block">
-            <span className={`mb-1 block ${labelClass}`}>Nama Bank</span>
-            <input
-              type="text"
-              value={bankName}
-              onChange={(e) => setBankName(e.target.value)}
-              placeholder="cth: BCA, BNI, BRI"
-              className={inputClass}
-            />
-          </label>
+function BankFormFields({ state }: { state: BankAccountState }) {
+  return (
+    <div className="space-y-3">
+      <Field
+        label="Nama Bank"
+        name="bankName"
+        placeholder="cth: BCA, BNI, BRI"
+        error={state.fieldErrors?.bankName?.[0]}
+      />
+      <Field
+        label="Nama Pemilik"
+        name="accountName"
+        placeholder="Sesuai buku tabungan"
+        error={state.fieldErrors?.accountName?.[0]}
+      />
+      <Field
+        label="Nomor Rekening"
+        name="accountNumber"
+        placeholder="cth: 1234567890"
+        inputMode="numeric"
+        error={state.fieldErrors?.accountNumber?.[0]}
+      />
+      <Field
+        label={
+          <>
+            Nomor Ponsel Cadangan{" "}
+            <span className="font-normal text-zinc-500">(opsional)</span>
+          </>
+        }
+        name="backupPhone"
+        placeholder="cth: 081234567890"
+        inputMode="tel"
+        error={state.fieldErrors?.backupPhone?.[0]}
+      />
+      {state.error && (
+        <p className="text-xs font-medium text-rose-600 sm:text-sm">
+          {state.error}
+        </p>
+      )}
+    </div>
+  );
+}
 
-          <label className="block">
-            <span className={`mb-1 block ${labelClass}`}>Nama Pemilik</span>
-            <input
-              type="text"
-              value={accountName}
-              onChange={(e) => setAccountName(e.target.value)}
-              placeholder="Sesuai buku tabungan"
-              className={inputClass}
-            />
-          </label>
+function Field({
+  label,
+  name,
+  placeholder,
+  inputMode,
+  error,
+}: {
+  label: React.ReactNode;
+  name: string;
+  placeholder?: string;
+  inputMode?: "numeric" | "tel" | "text";
+  error?: string;
+}) {
+  return (
+    <label className="block">
+      <span className={`mb-1 block ${labelClass}`}>{label}</span>
+      <input
+        type="text"
+        name={name}
+        placeholder={placeholder}
+        inputMode={inputMode}
+        className={inputClass}
+      />
+      {error && (
+        <span className="mt-1 block text-xs text-rose-600">{error}</span>
+      )}
+    </label>
+  );
+}
 
-          <label className="block">
-            <span className={`mb-1 block ${labelClass}`}>Nomor Rekening</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value)}
-              placeholder="cth: 1234567890"
-              className={inputClass}
-            />
-          </label>
+function ModalActions({
+  onCancel,
+  onSubmit,
+  isPending,
+  submitLabel,
+  submitVariant = "primary",
+}: {
+  onCancel: () => void;
+  onSubmit?: () => void;
+  isPending?: boolean;
+  submitLabel: string;
+  submitVariant?: "primary" | "danger";
+}) {
+  const submitClass =
+    submitVariant === "danger"
+      ? "bg-rose-600 hover:bg-rose-700 active:bg-rose-800"
+      : "bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800";
 
-          <label className="block">
-            <span className={`mb-1 block ${labelClass}`}>
-              Nomor Ponsel Cadangan{" "}
-              <span className="font-normal text-zinc-500">(opsional)</span>
-            </span>
-            <input
-              type="tel"
-              inputMode="numeric"
-              value={backupPhone}
-              onChange={(e) => setBackupPhone(e.target.value)}
-              placeholder="cth: 081234567890"
-              className={inputClass}
-            />
-          </label>
+  if (onSubmit) {
+    return (
+      <div className="mt-5 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md bg-zinc-100 px-4 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-200 sm:text-sm"
+        >
+          Batal
+        </button>
+        <button
+          type="button"
+          onClick={onSubmit}
+          className={`inline-flex items-center justify-center gap-1.5 rounded-md px-4 py-2 text-xs font-semibold text-white transition sm:text-sm ${submitClass}`}
+        >
+          <Save className="size-3.5" />
+          {submitLabel}
+        </button>
+      </div>
+    );
+  }
 
-          {error && (
-            <p className="text-xs font-medium text-rose-600 sm:text-sm">
-              {error}
-            </p>
-          )}
-        </div>
-
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md bg-zinc-100 px-4 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-200 sm:text-sm"
-          >
-            Batal
-          </button>
-          <button
-            type="submit"
-            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 active:bg-emerald-800 sm:text-sm"
-          >
-            <Save className="size-3.5" />
-            Simpan
-          </button>
-        </div>
-      </form>
+  return (
+    <div className="mt-5 flex justify-end gap-2">
+      <button
+        type="button"
+        onClick={onCancel}
+        className="rounded-md bg-zinc-100 px-4 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-200 sm:text-sm"
+      >
+        Batal
+      </button>
+      <button
+        type="submit"
+        disabled={isPending}
+        className={`inline-flex items-center justify-center gap-1.5 rounded-md px-4 py-2 text-xs font-semibold text-white transition disabled:opacity-60 sm:text-sm ${submitClass}`}
+      >
+        <Save className="size-3.5" />
+        {isPending ? "Menyimpan..." : submitLabel}
+      </button>
     </div>
   );
 }

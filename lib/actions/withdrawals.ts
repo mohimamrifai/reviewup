@@ -1,0 +1,116 @@
+"use server";
+
+import { and, eq, sql } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+import { db } from "@/lib/db";
+import { bankAccounts, profiles, withdrawals } from "@/lib/db/schema";
+import { createClient } from "@/lib/supabase/server";
+
+const withdrawSchema = z.object({
+  bankAccountId: z
+    .number({ message: "Pilih rekening tujuan." })
+    .int()
+    .positive("Rekening tidak valid."),
+  amount: z
+    .number({ message: "Nominal wajib diisi." })
+    .min(30000, "Minimal penarikan Rp 30.000.")
+    .max(100_000_000, "Maksimal penarikan Rp 100.000.000."),
+  withdrawPassword: z
+    .string()
+    .min(6, "Kata sandi penarikan minimal 6 karakter."),
+});
+
+export type WithdrawState = {
+  error?: string;
+  fieldErrors?: Partial<Record<string, string[]>>;
+  success?: boolean;
+};
+
+async function requireUser() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("UNAUTHENTICATED");
+  return user;
+}
+
+export async function submitWithdrawal(
+  _prev: WithdrawState,
+  formData: FormData,
+): Promise<WithdrawState> {
+  let user;
+  try {
+    user = await requireUser();
+  } catch {
+    return { error: "Sesi habis, silakan login ulang." };
+  }
+
+  const parsed = withdrawSchema.safeParse({
+    bankAccountId: Number(formData.get("bankAccountId")),
+    amount: Number(String(formData.get("amount") ?? "").replace(/[^\d]/g, "")),
+    withdrawPassword: formData.get("withdrawPassword"),
+  });
+
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  // Verifikasi sandi penarikan via DB (bcrypt crypt)
+  const [verify] = await db.execute<{ ok: boolean }>(sql`
+    SELECT (${parsed.data.withdrawPassword} = withdraw_password_hash) AS ok
+    FROM profiles WHERE id = ${user.id}
+  `);
+  if (!verify?.ok) {
+    return {
+      fieldErrors: { withdrawPassword: ["Kata sandi penarikan salah."] },
+    };
+  }
+
+  // Cek rekening milik user
+  const [bank] = await db
+    .select({ id: bankAccounts.id })
+    .from(bankAccounts)
+    .where(
+      and(
+        eq(bankAccounts.id, parsed.data.bankAccountId),
+        eq(bankAccounts.userId, user.id),
+      ),
+    )
+    .limit(1);
+  if (!bank) {
+    return { fieldErrors: { bankAccountId: ["Rekening tidak ditemukan."] } };
+  }
+
+  // Cek saldo cukup (atomic check + decrement)
+  const amountStr = parsed.data.amount.toFixed(2);
+  const updated = await db.execute<{ id: string; balance: string }>(sql`
+    UPDATE profiles
+    SET balance = balance - ${amountStr}::numeric,
+        frozen_balance = frozen_balance + ${amountStr}::numeric,
+        updated_at = now()
+    WHERE id = ${user.id}
+      AND balance >= ${amountStr}::numeric
+    RETURNING id, balance
+  `);
+
+  if (!updated.length) {
+    return { error: "Saldo tidak cukup." };
+  }
+
+  // Insert withdrawal row
+  await db.insert(withdrawals).values({
+    memberId: user.id,
+    bankAccountId: parsed.data.bankAccountId,
+    amount: amountStr,
+    status: "pending",
+  });
+
+  revalidatePath("/withdraw");
+  revalidatePath("/profil");
+  revalidatePath("/profil/withdrawlist");
+  revalidatePath("/admin/withdrawlist");
+  return { success: true };
+}

@@ -1,0 +1,363 @@
+"use server";
+
+import { eq, sql } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+import { db } from "@/lib/db";
+import { auditLogs, profiles } from "@/lib/db/schema";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+
+export type MemberToolState = {
+  error?: string;
+  fieldErrors?: Partial<Record<string, string[]>>;
+  success?: boolean;
+  message?: string;
+};
+
+async function requireAdmin(): Promise<string> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("UNAUTHENTICATED");
+
+  const [profile] = await db
+    .select({ role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
+  if (!profile || profile.role === "member") {
+    throw new Error("FORBIDDEN");
+  }
+  return user.id;
+}
+
+function handleAuthError(e: unknown): MemberToolState {
+  const msg = (e as Error).message;
+  if (msg === "FORBIDDEN") return { error: "Anda tidak memiliki akses admin." };
+  return { error: "Sesi habis, silakan login ulang." };
+}
+
+async function loadMember(memberId: string) {
+  const [member] = await db
+    .select({
+      id: profiles.id,
+      role: profiles.role,
+      level: profiles.level,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, memberId))
+    .limit(1);
+  return member;
+}
+
+// 1. Update level member
+const levelSchema = z.object({
+  memberId: z.string().uuid("ID anggota tidak valid."),
+  level: z.enum(
+    ["classic", "silver", "gold", "platinum", "diamond", "premier"],
+    { message: "Level tidak valid." },
+  ),
+});
+
+export async function updateMemberLevel(
+  _prev: MemberToolState,
+  formData: FormData,
+): Promise<MemberToolState> {
+  let adminId: string;
+  try {
+    adminId = await requireAdmin();
+  } catch (e) {
+    return handleAuthError(e);
+  }
+
+  const parsed = levelSchema.safeParse({
+    memberId: formData.get("memberId"),
+    level: formData.get("level"),
+  });
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  const member = await loadMember(parsed.data.memberId);
+  if (!member) return { error: "Anggota tidak ditemukan." };
+  if (member.role !== "member") {
+    return { error: "Hanya anggota dengan role member yang dapat diubah levelnya." };
+  }
+
+  const updated = await db
+    .update(profiles)
+    .set({ level: parsed.data.level, updatedAt: new Date() })
+    .where(eq(profiles.id, parsed.data.memberId))
+    .returning({ id: profiles.id });
+
+  if (!updated.length) return { error: "Gagal memperbarui level." };
+
+  await db.insert(auditLogs).values({
+    actorId: adminId,
+    targetId: parsed.data.memberId,
+    action: "update_level",
+    note: `Level diubah ke ${parsed.data.level}`,
+    metadata: JSON.stringify({ newLevel: parsed.data.level }),
+  });
+
+  revalidatePath("/admin/users");
+  return { success: true, message: "Level anggota berhasil diperbarui." };
+}
+
+// 2. Update credit score
+const creditScoreSchema = z.object({
+  memberId: z.string().uuid("ID anggota tidak valid."),
+  creditScore: z.coerce
+    .number({ message: "Skor kredit wajib diisi." })
+    .int("Skor kredit harus bilangan bulat.")
+    .min(0, "Skor kredit minimal 0.")
+    .max(1000, "Skor kredit maksimal 1000."),
+});
+
+export async function updateMemberCreditScore(
+  _prev: MemberToolState,
+  formData: FormData,
+): Promise<MemberToolState> {
+  let adminId: string;
+  try {
+    adminId = await requireAdmin();
+  } catch (e) {
+    return handleAuthError(e);
+  }
+
+  const parsed = creditScoreSchema.safeParse({
+    memberId: formData.get("memberId"),
+    creditScore: formData.get("creditScore"),
+  });
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  const updated = await db
+    .update(profiles)
+    .set({ creditScore: parsed.data.creditScore, updatedAt: new Date() })
+    .where(eq(profiles.id, parsed.data.memberId))
+    .returning({ id: profiles.id });
+
+  if (!updated.length) return { error: "Anggota tidak ditemukan." };
+
+  await db.insert(auditLogs).values({
+    actorId: adminId,
+    targetId: parsed.data.memberId,
+    action: "update_credit_score",
+    note: `Skor kredit diubah ke ${parsed.data.creditScore}`,
+    metadata: JSON.stringify({ newScore: parsed.data.creditScore }),
+  });
+
+  revalidatePath("/admin/users");
+  return { success: true, message: "Skor kredit berhasil diperbarui." };
+}
+
+// 3. Adjust saldo (bisa + atau -)
+const balanceSchema = z.object({
+  memberId: z.string().uuid("ID anggota tidak valid."),
+  amount: z.coerce
+    .number({ message: "Nominal wajib diisi." })
+    .refine((n) => n !== 0, "Nominal tidak boleh nol."),
+  note: z.string().trim().min(3, "Catatan minimal 3 karakter.").max(500),
+});
+
+export async function adjustMemberBalance(
+  _prev: MemberToolState,
+  formData: FormData,
+): Promise<MemberToolState> {
+  let adminId: string;
+  try {
+    adminId = await requireAdmin();
+  } catch (e) {
+    return handleAuthError(e);
+  }
+
+  const parsed = balanceSchema.safeParse({
+    memberId: formData.get("memberId"),
+    amount: formData.get("amount"),
+    note: formData.get("note"),
+  });
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  const amountStr = parsed.data.amount.toFixed(2);
+  const op = parsed.data.amount > 0 ? "+" : "-";
+
+  // Atomic update: tambah/kurangi balance
+  const result = await db.execute<{ id: string; balance: string }>(sql`
+    UPDATE profiles
+    SET balance = balance + ${amountStr}::numeric,
+        updated_at = now()
+    WHERE id = ${parsed.data.memberId}
+      AND (${parsed.data.amount}::numeric >= 0 OR balance + ${amountStr}::numeric >= 0)
+    RETURNING id, balance
+  `);
+
+  if (!result.length) {
+    return { error: "Gagal memperbarui saldo (saldo tidak boleh negatif)." };
+  }
+
+  await db.insert(auditLogs).values({
+    actorId: adminId,
+    targetId: parsed.data.memberId,
+    action: "adjust_balance",
+    amount: amountStr,
+    note: `${op === "+" ? "Penambahan" : "Pengurangan"} saldo: ${parsed.data.note}`,
+    metadata: JSON.stringify({ delta: parsed.data.amount, newBalance: result[0].balance }),
+  });
+
+  revalidatePath("/admin/users");
+  revalidatePath("/profil");
+  return { success: true, message: "Saldo anggota berhasil diperbarui." };
+}
+
+// 4. Reset password login (auth.users)
+const resetLoginSchema = z.object({
+  memberId: z.string().uuid("ID anggota tidak valid."),
+  newPassword: z
+    .string()
+    .min(8, "Kata sandi baru minimal 8 karakter.")
+    .max(72, "Kata sandi terlalu panjang (maks 72 karakter)."),
+});
+
+export async function resetMemberLoginPassword(
+  _prev: MemberToolState,
+  formData: FormData,
+): Promise<MemberToolState> {
+  let adminId: string;
+  try {
+    adminId = await requireAdmin();
+  } catch (e) {
+    return handleAuthError(e);
+  }
+
+  const parsed = resetLoginSchema.safeParse({
+    memberId: formData.get("memberId"),
+    newPassword: formData.get("newPassword"),
+  });
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  const adminClient = createAdminClient();
+  const { error } = await adminClient.auth.admin.updateUserById(
+    parsed.data.memberId,
+    { password: parsed.data.newPassword },
+  );
+  if (error) {
+    return { error: `Gagal memperbarui kata sandi: ${error.message}` };
+  }
+
+  await db.insert(auditLogs).values({
+    actorId: adminId,
+    targetId: parsed.data.memberId,
+    action: "reset_login_password",
+    note: "Kata sandi login direset oleh admin.",
+  });
+
+  revalidatePath("/admin/users");
+  return { success: true, message: "Kata sandi login berhasil direset." };
+}
+
+// 5. Reset password penarikan (withdraw_password_hash)
+const resetWithdrawSchema = z.object({
+  memberId: z.string().uuid("ID anggota tidak valid."),
+  newPassword: z
+    .string()
+    .min(6, "Kata sandi penarikan minimal 6 karakter.")
+    .max(72, "Kata sandi terlalu panjang (maks 72 karakter)."),
+});
+
+export async function resetMemberWithdrawPassword(
+  _prev: MemberToolState,
+  formData: FormData,
+): Promise<MemberToolState> {
+  let adminId: string;
+  try {
+    adminId = await requireAdmin();
+  } catch (e) {
+    return handleAuthError(e);
+  }
+
+  const parsed = resetWithdrawSchema.safeParse({
+    memberId: formData.get("memberId"),
+    newPassword: formData.get("newPassword"),
+  });
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  // Hash via PostgreSQL crypt() (bcrypt) supaya sama dengan sign-up trigger
+  const result = await db.execute<{ id: string }>(sql`
+    UPDATE profiles
+    SET withdraw_password_hash = crypt(${parsed.data.newPassword}, gen_salt('bf', 10)),
+        updated_at = now()
+    WHERE id = ${parsed.data.memberId}
+    RETURNING id
+  `);
+
+  if (!result.length) return { error: "Anggota tidak ditemukan." };
+
+  await db.insert(auditLogs).values({
+    actorId: adminId,
+    targetId: parsed.data.memberId,
+    action: "reset_withdraw_password",
+    note: "Kata sandi penarikan direset oleh admin.",
+  });
+
+  revalidatePath("/admin/users");
+  return { success: true, message: "Kata sandi penarikan berhasil direset." };
+}
+
+// 6. Toggle status penarikan (lock/unlock via status 'banned' sementara withdraw)
+// Untuk sekarang gunakan field status 'banned' sebagai flag blokir penarikan.
+const setStatusSchema = z.object({
+  memberId: z.string().uuid("ID anggota tidak valid."),
+  status: z.enum(["online", "offline", "banned"], {
+    message: "Status tidak valid.",
+  }),
+});
+
+export async function setMemberStatus(
+  _prev: MemberToolState,
+  formData: FormData,
+): Promise<MemberToolState> {
+  let adminId: string;
+  try {
+    adminId = await requireAdmin();
+  } catch (e) {
+    return handleAuthError(e);
+  }
+
+  const parsed = setStatusSchema.safeParse({
+    memberId: formData.get("memberId"),
+    status: formData.get("status"),
+  });
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  const updated = await db
+    .update(profiles)
+    .set({ status: parsed.data.status, updatedAt: new Date() })
+    .where(eq(profiles.id, parsed.data.memberId))
+    .returning({ id: profiles.id });
+
+  if (!updated.length) return { error: "Anggota tidak ditemukan." };
+
+  await db.insert(auditLogs).values({
+    actorId: adminId,
+    targetId: parsed.data.memberId,
+    action: "set_status",
+    note: `Status diubah ke ${parsed.data.status}`,
+    metadata: JSON.stringify({ newStatus: parsed.data.status }),
+  });
+
+  revalidatePath("/admin/users");
+  return { success: true, message: "Status anggota berhasil diperbarui." };
+}

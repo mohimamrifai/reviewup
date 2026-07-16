@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Save, X } from "lucide-react";
 
-import type { Channel, ChannelType } from "../../../../lib/dummy-channels";
+import {
+  createChannel,
+  updateChannel,
+  type ChannelState,
+} from "@/lib/actions/channels";
 
-const types: { value: ChannelType; label: string; placeholder: string }[] = [
+const types: { value: "whatsapp" | "telegram"; label: string; placeholder: string }[] = [
   {
     value: "whatsapp",
     label: "WhatsApp",
@@ -18,22 +22,35 @@ const types: { value: ChannelType; label: string; placeholder: string }[] = [
   },
 ];
 
-type Props = {
-  initial: Channel | null;
-  onSave: (data: { id: number | null; type: ChannelType; label: string; url: string }) => void;
-  onClose: () => void;
+export type ChannelInput = {
+  id: number;
+  type: "whatsapp" | "telegram";
+  label: string;
+  url: string;
+  isActive: boolean;
+  sortOrder: number;
 };
 
 const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm";
 
 const labelClass = "text-xs font-semibold text-zinc-900 sm:text-sm";
+const initialState: ChannelState = {};
 
-export function ChannelModal({ initial, onSave, onClose }: Props) {
-  const [type, setType] = useState<ChannelType>(initial?.type ?? "whatsapp");
-  const [label, setLabel] = useState(initial?.label ?? "");
-  const [url, setUrl] = useState(initial?.url ?? "");
-  const [error, setError] = useState<string | null>(null);
+type Props = {
+  initial: ChannelInput | null;
+  onClose: () => void;
+  onSaved: () => void;
+};
+
+export function ChannelModal({ initial, onClose, onSaved }: Props) {
+  const [type, setType] = useState<"whatsapp" | "telegram">(
+    initial?.type ?? "whatsapp",
+  );
+  const [state, formAction, isPending] = useActionState(
+    initial ? updateChannel : createChannel,
+    initialState,
+  );
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -48,25 +65,13 @@ export function ChannelModal({ initial, onSave, onClose }: Props) {
     };
   }, [onClose]);
 
+  // Auto-close on success (no fieldErrors & no error & done)
   useEffect(() => {
-    const found = types.find((t) => t.value === type);
-    if (found && !url) {
-      setUrl(found.placeholder);
+    if (!isPending && !state.error && !state.fieldErrors) {
+      onSaved();
     }
-  }, [type, url]);
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!label.trim()) {
-      setError("Label wajib diisi.");
-      return;
-    }
-    if (!url.trim()) {
-      setError("URL wajib diisi.");
-      return;
-    }
-    onSave({ id: initial?.id ?? null, type, label: label.trim(), url: url.trim() });
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPending, state]);
 
   const currentType = types.find((t) => t.value === type);
 
@@ -79,7 +84,7 @@ export function ChannelModal({ initial, onSave, onClose }: Props) {
       onClick={onClose}
     >
       <form
-        onSubmit={handleSubmit}
+        action={formAction}
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl sm:p-5"
       >
@@ -98,11 +103,16 @@ export function ChannelModal({ initial, onSave, onClose }: Props) {
         </div>
 
         <div className="space-y-3">
+          {initial && <input type="hidden" name="id" value={initial.id} />}
+
           <label className="block">
             <span className={`mb-1 block ${labelClass}`}>Jenis Layanan</span>
             <select
+              name="type"
               value={type}
-              onChange={(e) => setType(e.target.value as ChannelType)}
+              onChange={(e) =>
+                setType(e.target.value as "whatsapp" | "telegram")
+              }
               className={inputClass}
             >
               {types.map((t) => (
@@ -111,33 +121,70 @@ export function ChannelModal({ initial, onSave, onClose }: Props) {
                 </option>
               ))}
             </select>
+            {state.fieldErrors?.type?.[0] && (
+              <span className="mt-1 block text-xs text-rose-600">
+                {state.fieldErrors.type[0]}
+              </span>
+            )}
           </label>
 
           <label className="block">
             <span className={`mb-1 block ${labelClass}`}>Label</span>
             <input
               type="text"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
+              name="label"
+              defaultValue={initial?.label ?? ""}
               placeholder="cth: Customer Service 1"
               className={inputClass}
             />
+            {state.fieldErrors?.label?.[0] && (
+              <span className="mt-1 block text-xs text-rose-600">
+                {state.fieldErrors.label[0]}
+              </span>
+            )}
           </label>
 
           <label className="block">
             <span className={`mb-1 block ${labelClass}`}>URL</span>
             <input
               type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              name="url"
+              defaultValue={initial?.url ?? ""}
               placeholder={currentType?.placeholder}
               className={inputClass}
             />
+            {state.fieldErrors?.url?.[0] && (
+              <span className="mt-1 block text-xs text-rose-600">
+                {state.fieldErrors.url[0]}
+              </span>
+            )}
           </label>
 
-          {error && (
-            <p className="text-xs font-medium text-rose-600 sm:text-sm">
-              {error}
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className={`mb-1 block ${labelClass}`}>Urutan</span>
+              <input
+                type="number"
+                name="sortOrder"
+                defaultValue={initial?.sortOrder ?? 0}
+                inputMode="numeric"
+                className={inputClass}
+              />
+            </label>
+            <label className="flex items-end gap-2 pb-2">
+              <input
+                type="checkbox"
+                name="isActive"
+                defaultChecked={initial?.isActive ?? true}
+                className="size-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span className={labelClass}>Aktif</span>
+            </label>
+          </div>
+
+          {state.error && (
+            <p className="rounded-md bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600 sm:text-sm">
+              {state.error}
             </p>
           )}
         </div>
@@ -152,10 +199,11 @@ export function ChannelModal({ initial, onSave, onClose }: Props) {
           </button>
           <button
             type="submit"
-            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 sm:text-sm"
+            disabled={isPending}
+            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-60 sm:text-sm"
           >
             <Save className="size-3.5" />
-            Simpan
+            {isPending ? "Menyimpan..." : "Simpan"}
           </button>
         </div>
       </form>

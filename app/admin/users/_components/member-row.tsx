@@ -1,29 +1,68 @@
 "use client";
 
-import { useState } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Star } from "lucide-react";
 
-const levelOptions = ["Classic", "Silver", "Gold", "Platinum", "Diamond", "Premier"] as const;
-type Level = (typeof levelOptions)[number];
+import type { Member, MemberLevel } from "./members-table";
 
-type Props = {
-  id: number;
-  username: string;
-  level: Level;
-  creditScore: number;
-  balance: string;
-  frozenBalance: string;
-  registeredAt: string;
-  onEdit: (username: string) => void;
+const LEVEL_LABEL: Record<MemberLevel, string> = {
+  classic: "Classic",
+  silver: "Silver",
+  gold: "Gold",
+  platinum: "Platinum",
+  diamond: "Diamond",
+  premier: "Premier",
 };
 
-const selectClass =
-  "rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm";
+const LEVEL_CLASS: Record<MemberLevel, string> = {
+  classic: "bg-zinc-100 text-zinc-700",
+  silver: "bg-slate-200 text-slate-700",
+  gold: "bg-amber-100 text-amber-700",
+  platinum: "bg-indigo-100 text-indigo-700",
+  diamond: "bg-sky-100 text-sky-700",
+  premier: "bg-violet-100 text-violet-700",
+};
 
-const inputClass =
-  "w-20 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm";
+const ROLE_LABEL: Record<Member["role"], string> = {
+  member: "Member",
+  admin_staff: "Staff",
+  admin_leader: "Leader",
+  super_admin: "Super",
+};
 
-const okBadgeClass = "text-xs font-semibold text-emerald-600 sm:text-sm";
+const ROLE_CLASS: Record<Member["role"], string> = {
+  member: "bg-zinc-100 text-zinc-700",
+  admin_staff: "bg-sky-100 text-sky-700",
+  admin_leader: "bg-amber-100 text-amber-700",
+  super_admin: "bg-rose-100 text-rose-700",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  online: "Online",
+  offline: "Offline",
+  banned: "Banned",
+};
+
+const STATUS_CLASS: Record<string, string> = {
+  online: "bg-emerald-100 text-emerald-700",
+  offline: "bg-zinc-100 text-zinc-600",
+  banned: "bg-rose-100 text-rose-700",
+};
+
+function formatRupiah(value: string | number) {
+  const num = typeof value === "string" ? Number(value) : value;
+  return "Rp " + num.toLocaleString("id-ID");
+}
+
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+}
 
 const cellClass =
   "px-3 py-2 text-xs text-zinc-700 sm:px-4 sm:py-3 sm:text-sm";
@@ -32,60 +71,64 @@ const aksiCellClass =
   "sticky right-0 border-l border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-700 group-hover:bg-zinc-50/60 sm:static sm:border-l-0 sm:bg-transparent sm:group-hover:bg-transparent sm:px-4 sm:py-3 sm:text-sm";
 
 export function MemberRow({
-  id,
-  username,
-  level,
-  creditScore,
-  balance,
-  frozenBalance,
-  registeredAt,
+  member,
   onEdit,
-}: Props) {
-  const [currentLevel, setCurrentLevel] = useState<Level>(level);
-  const [currentScore, setCurrentScore] = useState(creditScore);
-
+}: {
+  member: Member;
+  onEdit: () => void;
+}) {
   return (
-    <tr className="border-t border-zinc-200 transition hover:bg-zinc-50/60">
-      <td className={cellClass}>{id}</td>
-      <td className={`${cellClass} font-medium text-zinc-900`}>{username}</td>
-      <td className={cellClass}>
-        <div className="flex items-center gap-2">
-          <select
-            value={currentLevel}
-            onChange={(e) => setCurrentLevel(e.target.value as Level)}
-            className={selectClass}
-          >
-            {levelOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-          <span className={okBadgeClass}>OK</span>
-        </div>
+    <tr className="group border-t border-zinc-200 transition hover:bg-zinc-50/60">
+      <td className={`${cellClass} font-medium text-zinc-900`}>
+        {member.username}
       </td>
       <td className={cellClass}>
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            value={currentScore}
-            onChange={(e) => setCurrentScore(Number(e.target.value))}
-            className={inputClass}
-          />
-          <span className={okBadgeClass}>OK</span>
-        </div>
+        <span
+          className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide sm:text-[11px] ${ROLE_CLASS[member.role]}`}
+        >
+          {ROLE_LABEL[member.role]}
+        </span>
       </td>
-      <td className={cellClass}>{balance}</td>
-      <td className={cellClass}>{frozenBalance}</td>
-      <td className={`${cellClass} whitespace-nowrap`}>{registeredAt}</td>
+      <td className={cellClass}>
+        <span
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold sm:text-xs ${LEVEL_CLASS[member.level]}`}
+        >
+          {member.level === "diamond" || member.level === "premier" ? (
+            <Star className="size-2.5 fill-current" />
+          ) : null}
+          {LEVEL_LABEL[member.level]}
+        </span>
+      </td>
+      <td className={cellClass}>{member.creditScore}</td>
+      <td className={`${cellClass} font-medium text-emerald-700`}>
+        {formatRupiah(member.balance)}
+      </td>
+      <td className={cellClass}>
+        {Number(member.frozenBalance) > 0
+          ? formatRupiah(member.frozenBalance)
+          : "—"}
+      </td>
+      <td className={cellClass}>
+        <span
+          className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold sm:text-xs ${
+            STATUS_CLASS[member.status] ?? "bg-zinc-100 text-zinc-600"
+          }`}
+        >
+          {STATUS_LABEL[member.status] ?? member.status}
+        </span>
+      </td>
+      <td className={`${cellClass} whitespace-nowrap`}>
+        {formatDate(member.createdAt)}
+      </td>
       <td className={aksiCellClass}>
         <button
           type="button"
-          aria-label={`Edit ${username}`}
-          onClick={() => onEdit(username)}
-          className="inline-flex items-center justify-center rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-indigo-600"
+          aria-label={`Edit ${member.username}`}
+          onClick={onEdit}
+          className="inline-flex items-center justify-center gap-1 rounded-md bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-700 transition hover:bg-sky-200"
         >
-          <Pencil className="size-4" />
+          <Pencil className="size-3" />
+          Tools
         </button>
       </td>
     </tr>

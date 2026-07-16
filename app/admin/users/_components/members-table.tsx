@@ -1,48 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 
 import { EditMemberModal } from "./edit-member-modal";
 import { MemberRow } from "./member-row";
 
-type Level =
-  | "Classic"
-  | "Silver"
-  | "Gold"
-  | "Platinum"
-  | "Diamond"
-  | "Premier";
+export type MemberLevel =
+  | "classic"
+  | "silver"
+  | "gold"
+  | "platinum"
+  | "diamond"
+  | "premier";
 
-type Member = {
-  id: number;
+export type MemberRole =
+  | "super_admin"
+  | "admin_leader"
+  | "admin_staff"
+  | "member";
+
+export type Member = {
+  id: string;
   username: string;
-  level: Level;
+  role: MemberRole;
+  level: MemberLevel;
   creditScore: number;
   balance: string;
   frozenBalance: string;
-  registeredAt: string;
+  status: string;
+  createdAt: string;
 };
 
-const initialMembers: Member[] = [
-  {
-    id: 2801,
-    username: "David",
-    level: "Classic",
-    creditScore: 100,
-    balance: "Rp 30.000",
-    frozenBalance: "Rp 0",
-    registeredAt: "14-07-2026 16:29",
-  },
-  {
-    id: 2784,
-    username: "Tess",
-    level: "Classic",
-    creditScore: 100,
-    balance: "Rp 30.000",
-    frozenBalance: "Rp 0",
-    registeredAt: "14-07-2026 12:40",
-  },
+const ROLE_OPTIONS: { value: MemberRole | "all"; label: string }[] = [
+  { value: "all", label: "Semua Role" },
+  { value: "member", label: "Member" },
+  { value: "admin_staff", label: "Admin Staff" },
+  { value: "admin_leader", label: "Admin Leader" },
+  { value: "super_admin", label: "Super Admin" },
 ];
 
 const headerCellClass =
@@ -54,43 +49,64 @@ const aksiHeaderClass =
 const searchInputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm";
 
-export function MembersTable() {
-  const [query, setQuery] = useState("");
-  const [editingUsername, setEditingUsername] = useState<string | null>(null);
+const selectClass =
+  "rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm";
 
-  const filtered = initialMembers.filter((m) =>
-    m.username.toLowerCase().includes(query.toLowerCase())
-  );
+export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
+  const [members, setMembers] = useState<Member[]>(initialMembers);
+  const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<MemberRole | "all">("all");
+  const [editing, setEditing] = useState<Member | null>(null);
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase();
+    return members.filter((m) => {
+      if (roleFilter !== "all" && m.role !== roleFilter) return false;
+      if (!q) return true;
+      return m.username.toLowerCase().includes(q);
+    });
+  }, [members, query, roleFilter]);
 
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <input
-          type="text"
-          placeholder="Cari username..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className={`${searchInputClass} sm:w-64`}
-        />
-        <button
-          type="button"
-          className="inline-flex items-center justify-center gap-1.5 self-start rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 sm:self-auto sm:text-sm"
+        <div className="relative flex-1 sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-zinc-400" />
+          <input
+            type="text"
+            placeholder="Cari username..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className={`${searchInputClass} pl-8`}
+          />
+        </div>
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value as MemberRole | "all")}
+          className={selectClass}
         >
-          <Search className="size-3.5" />
-          Cari
-        </button>
+          {ROLE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-zinc-500 sm:ml-auto sm:text-sm">
+          {filtered.length} dari {members.length} pengguna
+        </span>
       </div>
 
       <div className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-zinc-200/60">
-        <table className="w-full min-w-[760px] border-collapse">
+        <table className="w-full min-w-[860px] border-collapse">
           <thead className="bg-zinc-100">
             <tr>
-              <th className={headerCellClass}>ID</th>
               <th className={headerCellClass}>Username</th>
+              <th className={headerCellClass}>Role</th>
               <th className={headerCellClass}>Level</th>
               <th className={headerCellClass}>Skor Kredit</th>
               <th className={headerCellClass}>Saldo</th>
               <th className={headerCellClass}>Saldo Beku</th>
+              <th className={headerCellClass}>Status</th>
               <th className={headerCellClass}>Terdaftar</th>
               <th className={aksiHeaderClass}>Aksi</th>
             </tr>
@@ -99,25 +115,37 @@ export function MembersTable() {
             {filtered.length === 0 ? (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   className="px-3 py-6 text-center text-xs text-zinc-500 sm:text-sm"
                 >
-                  Tidak ada anggota yang cocok.
+                  {members.length === 0
+                    ? "Belum ada pengguna terdaftar."
+                    : "Tidak ada pengguna yang cocok."}
                 </td>
               </tr>
             ) : (
               filtered.map((m) => (
-                <MemberRow key={m.id} {...m} onEdit={setEditingUsername} />
+                <MemberRow
+                  key={m.id}
+                  member={m}
+                  onEdit={() => setEditing(m)}
+                />
               ))
             )}
           </tbody>
         </table>
       </div>
 
-      {editingUsername !== null && (
+      {editing && (
         <EditMemberModal
-          username={editingUsername}
-          onClose={() => setEditingUsername(null)}
+          member={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(updated) => {
+            setMembers((cur) =>
+              cur.map((m) => (m.id === updated.id ? updated : m)),
+            );
+            setEditing(null);
+          }}
         />
       )}
     </div>

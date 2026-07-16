@@ -1,7 +1,24 @@
+import { asc } from "drizzle-orm";
+
+import { db } from "@/lib/db";
+import { customerServiceChannels } from "@/lib/db/schema";
+
 import { AdminNav } from "../dashboard/_components/admin-nav";
 import { PelayananTable } from "./_components/pelayanan-table";
 
-export default function AdminPelayananPage() {
+export default async function AdminPelayananPage() {
+  const rows = await db
+    .select({
+      id: customerServiceChannels.id,
+      type: customerServiceChannels.type,
+      label: customerServiceChannels.label,
+      url: customerServiceChannels.url,
+      isActive: customerServiceChannels.isActive,
+      sortOrder: customerServiceChannels.sortOrder,
+    })
+    .from(customerServiceChannels)
+    .orderBy(asc(customerServiceChannels.sortOrder), asc(customerServiceChannels.id));
+
   return (
     <div className="min-h-screen bg-zinc-100 text-zinc-900">
       <AdminNav active="Pelayanan" />
@@ -17,7 +34,16 @@ export default function AdminPelayananPage() {
           </p>
         </div>
 
-        <PelayananTable />
+        <PelayananTable
+          initialChannels={rows.map((r) => ({
+            id: r.id,
+            type: r.type as "whatsapp" | "telegram",
+            label: r.label,
+            url: r.url,
+            isActive: r.isActive,
+            sortOrder: r.sortOrder,
+          }))}
+        />
       </div>
     </div>
   );

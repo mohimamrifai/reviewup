@@ -1,64 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import { Search } from "lucide-react";
+import { useActionState, useMemo, useState } from "react";
+import { Check, Search, X } from "lucide-react";
 
-type Status = "menunggu" | "sukses" | "gagal";
+import { reviewWithdrawal } from "@/lib/actions/withdrawals-admin";
 
-type Withdraw = {
-  id: number;
-  username: string;
-  bank: string;
-  accountName: string;
-  accountNumber: string;
-  amount: number;
-  status: Status;
-  date: string;
+const STATUS_OPTIONS = [
+  { value: "all", label: "Semua Status" },
+  { value: "pending", label: "Menunggu" },
+  { value: "completed", label: "Selesai" },
+  { value: "rejected", label: "Ditolak" },
+] as const;
+
+const statusStyles: Record<string, string> = {
+  pending: "bg-amber-100 text-amber-700",
+  completed: "bg-emerald-100 text-emerald-700",
+  rejected: "bg-rose-100 text-rose-700",
 };
 
-const initialWithdraws: Withdraw[] = [
-  {
-    id: 1,
-    username: "David",
-    bank: "BCA",
-    accountName: "David Setiawan",
-    accountNumber: "1234567890",
-    amount: 50000,
-    status: "sukses",
-    date: "14-07-2026 16:30",
-  },
-  {
-    id: 2,
-    username: "Tess",
-    bank: "BNI",
-    accountName: "Tess Wulandari",
-    accountNumber: "0987654321",
-    amount: 100000,
-    status: "menunggu",
-    date: "14-07-2026 12:45",
-  },
-  {
-    id: 3,
-    username: "David",
-    bank: "BRI",
-    accountName: "David Setiawan",
-    accountNumber: "5555666677",
-    amount: 75000,
-    status: "sukses",
-    date: "13-07-2026 09:15",
-  },
-];
-
-const statusStyles: Record<Status, string> = {
-  menunggu: "bg-amber-100 text-amber-700",
-  sukses: "bg-emerald-100 text-emerald-700",
-  gagal: "bg-rose-100 text-rose-700",
-};
-
-const statusLabels: Record<Status, string> = {
-  menunggu: "Menunggu",
-  sukses: "Sukses",
-  gagal: "Gagal",
+const statusLabels: Record<string, string> = {
+  pending: "Menunggu",
+  completed: "Selesai",
+  rejected: "Ditolak",
 };
 
 const headerCellClass =
@@ -73,50 +36,111 @@ const cellClass =
 const aksiCellClass =
   "sticky right-0 border-l border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-700 group-hover:bg-zinc-50/60 sm:static sm:border-l-0 sm:bg-transparent sm:group-hover:bg-transparent sm:px-4 sm:py-3 sm:text-sm";
 
-const searchInputClass =
-  "w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm";
+const inputClass =
+  "rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm";
 
-function formatRupiah(n: number): string {
-  return `Rp ${n.toLocaleString("id-ID")}`;
+type WithdrawStatus = "pending" | "completed" | "rejected";
+
+type Withdraw = {
+  id: number;
+  memberUsername: string;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  amount: string;
+  status: WithdrawStatus;
+  notes: string | null;
+  createdAt: string;
+};
+
+function formatRupiah(value: string | number) {
+  const num = typeof value === "string" ? Number(value) : value;
+  return "Rp " + num.toLocaleString("id-ID");
 }
 
-export function WithdrawsTable() {
-  const [query, setQuery] = useState("");
+function formatDate(iso: string) {
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
 
-  const filtered = initialWithdraws.filter((w) =>
-    !query || w.username.toLowerCase().includes(query.toLowerCase())
-  );
+export function WithdrawsTable({
+  initialWithdraws,
+}: {
+  initialWithdraws: Withdraw[];
+}) {
+  const [withdraws, setWithdraws] = useState<Withdraw[]>(initialWithdraws);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase();
+    return withdraws.filter((w) => {
+      if (statusFilter !== "all" && w.status !== statusFilter) return false;
+      if (!q) return true;
+      return (
+        w.memberUsername.toLowerCase().includes(q) ||
+        w.bankName.toLowerCase().includes(q) ||
+        w.accountNumber.includes(q)
+      );
+    });
+  }, [withdraws, query, statusFilter]);
+
+  const totalAmount = useMemo(() => {
+    return filtered
+      .filter((w) => w.status === "completed")
+      .reduce((sum, w) => sum + Number(w.amount), 0);
+  }, [filtered]);
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <input
-          type="text"
-          placeholder="Cari username..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className={`${searchInputClass} sm:w-64`}
-        />
-        <button
-          type="button"
-          className="inline-flex items-center justify-center gap-1.5 self-start rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 sm:self-auto sm:text-sm"
-        >
-          <Search className="size-3.5" />
-          Cari
-        </button>
+      <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-zinc-200/60 sm:p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1 sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              placeholder="Cari user / bank / rekening..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className={`${inputClass} w-full pl-8`}
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className={inputClass}
+          >
+            {STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-zinc-500 sm:ml-auto sm:text-sm">
+            {filtered.length} item • Total selesai:{" "}
+            <span className="font-semibold text-emerald-700">
+              {formatRupiah(totalAmount)}
+            </span>
+          </span>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-zinc-200/60">
         <table className="w-full min-w-[860px] border-collapse">
           <thead className="bg-zinc-100">
             <tr>
-              <th className={headerCellClass}>Username</th>
+              <th className={headerCellClass}>User</th>
               <th className={headerCellClass}>Bank</th>
-              <th className={headerCellClass}>Nama Rekening</th>
+              <th className={headerCellClass}>Pemilik</th>
               <th className={headerCellClass}>No. Rekening</th>
               <th className={headerCellClass}>Jumlah</th>
-              <th className={headerCellClass}>Status</th>
               <th className={headerCellClass}>Tanggal</th>
+              <th className={headerCellClass}>Status</th>
               <th className={aksiHeaderClass}>Aksi</th>
             </tr>
           </thead>
@@ -127,46 +151,211 @@ export function WithdrawsTable() {
                   colSpan={8}
                   className="px-3 py-6 text-center text-xs text-zinc-500 sm:text-sm"
                 >
-                  Tidak ada data ditemukan
+                  {withdraws.length === 0
+                    ? "Belum ada pengajuan penarikan."
+                    : "Tidak ada data yang cocok."}
                 </td>
               </tr>
             ) : (
               filtered.map((w) => (
-                <tr
+                <Row
                   key={w.id}
-                  className="group border-t border-zinc-200 transition hover:bg-zinc-50/60"
-                >
-                  <td className={`${cellClass} font-medium text-zinc-900`}>
-                    {w.username}
-                  </td>
-                  <td className={cellClass}>{w.bank}</td>
-                  <td className={cellClass}>{w.accountName}</td>
-                  <td className={`${cellClass} font-mono tabular-nums`}>
-                    {w.accountNumber}
-                  </td>
-                  <td className={cellClass}>{formatRupiah(w.amount)}</td>
-                  <td className={cellClass}>
-                    <span
-                      className={`inline-block rounded-md px-2 py-0.5 text-xs font-semibold ${statusStyles[w.status]}`}
-                    >
-                      {statusLabels[w.status]}
-                    </span>
-                  </td>
-                  <td className={cellClass}>{w.date}</td>
-                  <td className={aksiCellClass}>
-                    <button
-                      type="button"
-                      className="rounded-md bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-700 transition hover:bg-indigo-200 sm:text-sm"
-                    >
-                      Detail
-                    </button>
-                  </td>
-                </tr>
+                  withdraw={w}
+                  onUpdated={(updated) =>
+                    setWithdraws((cur) =>
+                      cur.map((x) => (x.id === updated.id ? updated : x)),
+                    )
+                  }
+                />
               ))
             )}
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+type ReviewState = {
+  error?: string;
+  fieldErrors?: Partial<Record<string, string[]>>;
+  success?: boolean;
+};
+
+const initialReview: ReviewState = {};
+
+function Row({
+  withdraw,
+  onUpdated,
+}: {
+  withdraw: Withdraw;
+  onUpdated: (w: Withdraw) => void;
+}) {
+  const [reviewing, setReviewing] = useState<"complete" | "reject" | null>(null);
+
+  return (
+    <tr className="group border-t border-zinc-200 transition hover:bg-zinc-50/60">
+      <td className={`${cellClass} font-medium text-zinc-900`}>
+        {withdraw.memberUsername}
+      </td>
+      <td className={cellClass}>{withdraw.bankName}</td>
+      <td className={cellClass}>{withdraw.accountName}</td>
+      <td className={`${cellClass} font-mono tabular-nums`}>
+        {withdraw.accountNumber}
+      </td>
+      <td className={cellClass}>{formatRupiah(withdraw.amount)}</td>
+      <td className={cellClass}>{formatDate(withdraw.createdAt)}</td>
+      <td className={cellClass}>
+        <span
+          className={`inline-block rounded-md px-2 py-0.5 text-xs font-semibold ${statusStyles[withdraw.status]}`}
+        >
+          {statusLabels[withdraw.status]}
+        </span>
+        {withdraw.notes && (
+          <p className="mt-1 text-[10px] text-zinc-500 sm:text-xs">
+            {withdraw.notes}
+          </p>
+        )}
+      </td>
+      <td className={aksiCellClass}>
+        {withdraw.status === "pending" ? (
+          <div className="flex flex-col gap-1">
+            <button
+              type="button"
+              onClick={() => setReviewing("complete")}
+              className="inline-flex items-center justify-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-emerald-700"
+            >
+              <Check className="size-3" />
+              Selesai
+            </button>
+            <button
+              type="button"
+              onClick={() => setReviewing("reject")}
+              className="inline-flex items-center justify-center gap-1 rounded-md bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-rose-700"
+            >
+              <X className="size-3" />
+              Tolak
+            </button>
+          </div>
+        ) : (
+          <span className="text-xs text-zinc-400">—</span>
+        )}
+      </td>
+
+      {reviewing && (
+        <ReviewModal
+          withdraw={withdraw}
+          action={reviewing}
+          onClose={() => setReviewing(null)}
+          onSuccess={(updated) => {
+            onUpdated(updated);
+            setReviewing(null);
+          }}
+        />
+      )}
+    </tr>
+  );
+}
+
+function ReviewModal({
+  withdraw,
+  action,
+  onClose,
+  onSuccess,
+}: {
+  withdraw: Withdraw;
+  action: "complete" | "reject";
+  onClose: () => void;
+  onSuccess: (updated: Withdraw) => void;
+}) {
+  const [state, formAction, isPending] = useActionState(
+    reviewWithdrawal,
+    initialReview,
+  );
+
+  if (state.success) {
+    onSuccess({
+      ...withdraw,
+      status: action === "complete" ? "completed" : "rejected",
+    });
+  }
+
+  const isComplete = action === "complete";
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={isComplete ? "Selesaikan penarikan" : "Tolak penarikan"}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-3 sm:p-4"
+      onClick={onClose}
+    >
+      <form
+        action={formAction}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl sm:p-5"
+      >
+        <input type="hidden" name="id" value={withdraw.id} />
+        <input type="hidden" name="action" value={action} />
+
+        <h2
+          className={`text-sm font-bold sm:text-base ${isComplete ? "text-emerald-700" : "text-rose-700"}`}
+        >
+          {isComplete ? "Selesaikan Penarikan" : "Tolak Penarikan"}
+        </h2>
+        <p className="mt-1 text-xs text-zinc-600 sm:text-sm">
+          <span className="font-medium text-zinc-900">
+            {withdraw.memberUsername}
+          </span>{" "}
+          • {withdraw.bankName} {withdraw.accountNumber} •{" "}
+          {formatRupiah(withdraw.amount)}
+        </p>
+
+        <label className="mt-3 block">
+          <span className="mb-1 block text-xs font-semibold text-zinc-900 sm:text-sm">
+            Catatan (opsional)
+          </span>
+          <textarea
+            name="notes"
+            rows={3}
+            defaultValue={withdraw.notes ?? ""}
+            placeholder={
+              isComplete
+                ? "cth: Dana sudah ditransfer via ATM."
+                : "cth: Rekening tidak valid, mohon cek kembali."
+            }
+            className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm"
+          />
+        </label>
+
+        {state.error && (
+          <p className="mt-2 rounded-md bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600 sm:text-sm">
+            {state.error}
+          </p>
+        )}
+
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md bg-zinc-100 px-4 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-200 sm:text-sm"
+          >
+            Batal
+          </button>
+          <button
+            type="submit"
+            disabled={isPending}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-md px-4 py-2 text-xs font-semibold text-white transition disabled:opacity-60 sm:text-sm ${
+              isComplete
+                ? "bg-emerald-600 hover:bg-emerald-700"
+                : "bg-rose-600 hover:bg-rose-700"
+            }`}
+          >
+            {isComplete ? <Check className="size-3.5" /> : <X className="size-3.5" />}
+            {isPending ? "Memproses..." : isComplete ? "Selesaikan" : "Tolak"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
