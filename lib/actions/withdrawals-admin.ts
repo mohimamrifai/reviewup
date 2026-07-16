@@ -118,7 +118,7 @@ export async function reviewWithdrawal(
     }
   }
 
-  revalidatePath("/admin/withdrawList");
+  revalidatePath("/admin/withdrawlist");
   revalidatePath("/withdraw");
   revalidatePath("/profil");
   revalidatePath("/profil/withdrawlist");
