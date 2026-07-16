@@ -98,16 +98,31 @@ export async function adminSignIn(
   redirect("/admin/dashboard");
 }
 
-function readableErrorMessage(raw: unknown): string {
-  if (typeof raw !== "string") return "Gagal membuat akun.";
-  const trimmed = raw.trim();
-  if (!trimmed) return "Gagal membuat akun.";
-  // Supabase kadang return JSON-stringify dari object kosong
-  // atau string yang cuma berisi "{}" / "[]" — tampilkan generic saja.
-  if (trimmed === "{}" || trimmed === "[]" || trimmed === "null") {
-    return "Gagal membuat akun.";
+function describeSupabaseError(err: unknown): string {
+  if (!err) return "Unknown error (no details returned).";
+  if (typeof err === "string") return err;
+  if (err instanceof Error) {
+    const anyErr = err as Error & {
+      status?: number;
+      code?: string;
+      error_code?: string;
+      error_description?: string;
+      hint?: string;
+    };
+    const parts: string[] = [];
+    if (anyErr.message) parts.push(anyErr.message);
+    if (anyErr.error_description) parts.push(`desc=${anyErr.error_description}`);
+    if (anyErr.error_code) parts.push(`code=${anyErr.error_code}`);
+    if (anyErr.code) parts.push(`status=${anyErr.code}`);
+    if (anyErr.hint) parts.push(`hint=${anyErr.hint}`);
+    if (anyErr.status !== undefined) parts.push(`http=${anyErr.status}`);
+    return parts.length > 0 ? parts.join(" | ") : err.toString();
   }
-  return trimmed;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
 }
 
 export async function signUp(
@@ -152,29 +167,69 @@ export async function signUp(
     return { fieldErrors: { namaPengguna: ["Nama pengguna sudah dipakai."] } };
   }
 
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error("[signUp] Missing Supabase env vars", {
+      hasUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
+      hasServiceKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+    });
+    return {
+      error:
+        "Konfigurasi server belum lengkap (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY). Hubungi admin.",
+    };
+  }
+
   const supabase = await createClient();
   const admin = createAdminClient();
 
   // 1. Create user via admin client with email_confirm: true
   //    → trigger handle_new_user() otomatis insert ke public.profiles
-  const { data: created, error: createError } = await admin.auth.admin.createUser({
-    email: syntheticEmail(username),
-    password: parsed.data.kataSandi,
-    email_confirm: true,
-    user_metadata: {
-      username,
-      role: "member",
-      referral_code: referralCode,
-      withdraw_password_hash: parsed.data.sandiPenarikan,
-    },
-  });
+  let created: Awaited<ReturnType<typeof admin.auth.admin.createUser>>["data"];
+  let createError: Awaited<ReturnType<typeof admin.auth.admin.createUser>>["error"];
+  try {
+    const result = await admin.auth.admin.createUser({
+      email: syntheticEmail(username),
+      password: parsed.data.kataSandi,
+      email_confirm: true,
+      user_metadata: {
+        username,
+        role: "member",
+        referral_code: referralCode,
+        withdraw_password_hash: parsed.data.sandiPenarikan,
+      },
+    });
+    created = result.data;
+    createError = result.error;
+  } catch (e) {
+    // Exception synchronous (mis. network/SDK bug) — tangkap agar bisa ditampilkan.
+    console.error("[signUp] createUser threw:", e);
+    return { error: "Gagal membuat akun: " + describeSupabaseError(e) };
+  }
 
   if (createError || !created?.user) {
+    // Log full error server-side agar bisa di-inspect di Vercel logs.
+    console.error("[signUp] createUser error:", {
+      username,
+      referralCode,
+      createError,
+      created,
+    });
+    const detail = describeSupabaseError(createError);
     // Kemungkinan duplicate email
-    if (createError?.message?.toLowerCase().includes("already")) {
-      return { fieldErrors: { namaPengguna: ["Nama pengguna sudah dipakai."] } };
+    const errMsg = createError?.message?.toLowerCase() ?? "";
+    const errDesc =
+      (createError as { error_description?: string } | null)
+        ?.error_description?.toLowerCase() ?? "";
+    if (
+      errMsg.includes("already") ||
+      errDesc.includes("already") ||
+      (createError as { code?: string } | null)?.code === "email_exists"
+    ) {
+      return {
+        fieldErrors: { namaPengguna: ["Nama pengguna sudah dipakai."] },
+        error: `Nama pengguna sudah dipakai. (${detail})`,
+      };
     }
-    return { error: readableErrorMessage(createError?.message) };
+    return { error: detail };
   }
 
   // 2. Sign in dengan anon client (email sudah confirmed, jadi tidak butuh
@@ -185,10 +240,11 @@ export async function signUp(
   });
 
   if (signInError) {
+    console.error("[signUp] signIn error:", signInError);
     return {
       error:
         "Akun berhasil dibuat, tetapi login otomatis gagal: " +
-        readableErrorMessage(signInError.message),
+        describeSupabaseError(signInError),
     };
   }
 

@@ -55,11 +55,10 @@ export default function RegisterPage() {
   }
 
   const { errors } = form.formState;
-  // Hanya render error kalau string yang punya isi bermakna.
-  // Defensive: kalau backend sempat kirim "{}" / "[]" / object, jangan tampilkan.
+  // Tampilkan error apa pun yang dikirim server, selama string dan tidak kosong.
   const topError =
     typeof state.error === "string" && state.error.trim().length > 0
-      ? state.error
+      ? state.error.trim()
       : null;
 
   return (
@@ -148,7 +147,7 @@ export default function RegisterPage() {
           </FormField>
         </div>
 
-        {topError && topError !== "{}" && topError !== "[]" && topError !== "null" ? (
+        {topError ? (
           <p className="mt-3 text-center text-xs font-medium text-rose-600 sm:mt-4 sm:text-sm">
             {topError}
           </p>
