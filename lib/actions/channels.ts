@@ -34,6 +34,14 @@ const channelSchema = z.object({
 export type ChannelState = {
   error?: string;
   fieldErrors?: Partial<Record<string, string[]>>;
+  saved?: {
+    id: number;
+    type: "whatsapp" | "telegram";
+    label: string;
+    url: string;
+    isActive: boolean;
+    sortOrder: number;
+  };
 };
 
 export async function createChannel(
@@ -51,17 +59,31 @@ export async function createChannel(
     return { fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
-  await db.insert(customerServiceChannels).values({
-    type: parsed.data.type,
-    label: parsed.data.label,
-    url: parsed.data.url,
-    isActive: parsed.data.isActive,
-    sortOrder: parsed.data.sortOrder,
-  });
+  const [row] = await db
+    .insert(customerServiceChannels)
+    .values({
+      type: parsed.data.type,
+      label: parsed.data.label,
+      url: parsed.data.url,
+      isActive: parsed.data.isActive,
+      sortOrder: parsed.data.sortOrder,
+    })
+    .returning({
+      id: customerServiceChannels.id,
+      type: customerServiceChannels.type,
+      label: customerServiceChannels.label,
+      url: customerServiceChannels.url,
+      isActive: customerServiceChannels.isActive,
+      sortOrder: customerServiceChannels.sortOrder,
+    });
 
   revalidatePath("/admin/pelayanan");
   revalidatePath("/support");
-  return {};
+  return {
+    saved: row
+      ? { ...row, type: row.type as "whatsapp" | "telegram" }
+      : undefined,
+  };
 }
 
 export async function updateChannel(
@@ -84,7 +106,7 @@ export async function updateChannel(
     return { fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
-  await db
+  const [row] = await db
     .update(customerServiceChannels)
     .set({
       type: parsed.data.type,
@@ -94,11 +116,23 @@ export async function updateChannel(
       sortOrder: parsed.data.sortOrder,
       updatedAt: new Date(),
     })
-    .where(eq(customerServiceChannels.id, id));
+    .where(eq(customerServiceChannels.id, id))
+    .returning({
+      id: customerServiceChannels.id,
+      type: customerServiceChannels.type,
+      label: customerServiceChannels.label,
+      url: customerServiceChannels.url,
+      isActive: customerServiceChannels.isActive,
+      sortOrder: customerServiceChannels.sortOrder,
+    });
 
   revalidatePath("/admin/pelayanan");
   revalidatePath("/support");
-  return {};
+  return {
+    saved: row
+      ? { ...row, type: row.type as "whatsapp" | "telegram" }
+      : undefined,
+  };
 }
 
 export async function deleteChannel(

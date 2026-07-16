@@ -14,7 +14,7 @@ import {
   type MemberToolState,
 } from "@/lib/actions/member-tools";
 
-import type { Member, MemberLevel, MemberRole } from "./members-table";
+import type { Member, MemberLevel } from "./members-table";
 
 const TABS = [
   { key: "level", label: "Level & Skor" },
@@ -439,8 +439,6 @@ export function EditMemberModal({ member, onClose, onSaved }: Props) {
     };
   }, [onClose]);
 
-  const isAdmin = member.role !== ("member" satisfies MemberRole);
-
   return (
     <div
       role="dialog"
@@ -471,12 +469,6 @@ export function EditMemberModal({ member, onClose, onSaved }: Props) {
             <X className="size-4" />
           </button>
         </div>
-
-        {isAdmin && tab === "level" && (
-          <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-700 sm:text-xs">
-            Pengguna ini adalah admin. Perubahan level hanya berlaku untuk member.
-          </p>
-        )}
 
         <div className="mb-3 flex gap-1 rounded-lg bg-zinc-100 p-1">
           {TABS.map((t) => (

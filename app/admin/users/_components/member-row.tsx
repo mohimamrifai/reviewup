@@ -22,20 +22,6 @@ const LEVEL_CLASS: Record<MemberLevel, string> = {
   premier: "bg-violet-100 text-violet-700",
 };
 
-const ROLE_LABEL: Record<Member["role"], string> = {
-  member: "Member",
-  admin_staff: "Staff",
-  admin_leader: "Leader",
-  super_admin: "Super",
-};
-
-const ROLE_CLASS: Record<Member["role"], string> = {
-  member: "bg-zinc-100 text-zinc-700",
-  admin_staff: "bg-sky-100 text-sky-700",
-  admin_leader: "bg-amber-100 text-amber-700",
-  super_admin: "bg-rose-100 text-rose-700",
-};
-
 const STATUS_LABEL: Record<string, string> = {
   online: "Online",
   offline: "Offline",
@@ -84,13 +70,6 @@ export function MemberRow({
       </td>
       <td className={cellClass}>
         <span
-          className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide sm:text-[11px] ${ROLE_CLASS[member.role]}`}
-        >
-          {ROLE_LABEL[member.role]}
-        </span>
-      </td>
-      <td className={cellClass}>
-        <span
           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold sm:text-xs ${LEVEL_CLASS[member.level]}`}
         >
           {member.level === "diamond" || member.level === "premier" ? (
@@ -134,3 +113,4 @@ export function MemberRow({
     </tr>
   );
 }
+

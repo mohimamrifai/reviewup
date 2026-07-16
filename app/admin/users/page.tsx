@@ -1,17 +1,36 @@
-import { desc } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
+import { createClient } from "@/lib/supabase/server";
 
 import { AdminNav } from "../dashboard/_components/admin-nav";
 import { MembersTable } from "./_components/members-table";
 
 export default async function AdminUsersPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const conditions = [eq(profiles.role, "member")];
+
+  if (user) {
+    const [me] = await db
+      .select({ id: profiles.id, role: profiles.role })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1);
+
+    if (me?.role === "admin_staff") {
+      conditions.push(eq(profiles.referredBy, me.id));
+    }
+  }
+
   const rows = await db
     .select({
       id: profiles.id,
       username: profiles.username,
-      role: profiles.role,
       level: profiles.level,
       creditScore: profiles.creditScore,
       balance: profiles.balance,
@@ -20,6 +39,7 @@ export default async function AdminUsersPage() {
       createdAt: profiles.createdAt,
     })
     .from(profiles)
+    .where(and(...conditions))
     .orderBy(desc(profiles.createdAt));
 
   return (
@@ -31,7 +51,6 @@ export default async function AdminUsersPage() {
           initialMembers={rows.map((r) => ({
             id: r.id,
             username: r.username,
-            role: r.role,
             level: r.level,
             creditScore: r.creditScore,
             balance: r.balance,

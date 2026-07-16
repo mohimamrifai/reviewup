@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Save, X } from "lucide-react";
 
 import {
@@ -40,7 +40,7 @@ const initialState: ChannelState = {};
 type Props = {
   initial: ChannelInput | null;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (saved: NonNullable<ChannelState["saved"]>) => void;
 };
 
 export function ChannelModal({ initial, onClose, onSaved }: Props) {
@@ -51,6 +51,7 @@ export function ChannelModal({ initial, onClose, onSaved }: Props) {
     initial ? updateChannel : createChannel,
     initialState,
   );
+  const skipFirstRun = useRef(true);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -67,8 +68,12 @@ export function ChannelModal({ initial, onClose, onSaved }: Props) {
 
   // Auto-close on success (no fieldErrors & no error & done)
   useEffect(() => {
-    if (!isPending && !state.error && !state.fieldErrors) {
-      onSaved();
+    if (skipFirstRun.current) {
+      skipFirstRun.current = false;
+      return;
+    }
+    if (!isPending && !state.error && !state.fieldErrors && state.saved) {
+      onSaved(state.saved);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPending, state]);

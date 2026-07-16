@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { ExternalLink, Pencil, Plus, Search, Send, Trash2 } from "lucide-react";
+import { ExternalLink, Pencil, Plus, Send, Trash2 } from "lucide-react";
 
-import { deleteChannel } from "@/lib/actions/channels";
+import { deleteChannel, type ChannelState } from "@/lib/actions/channels";
 
 import { ChannelModal, type ChannelInput } from "./channel-modal";
 
@@ -20,14 +20,8 @@ const typeBadgeClass: Record<ChannelInput["type"], string> = {
 const headerCellClass =
   "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-600 sm:px-4 sm:py-3 sm:text-xs";
 
-const aksiHeaderClass =
-  "sticky right-0 border-l border-zinc-200 bg-zinc-100 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-600 sm:static sm:border-l-0 sm:px-4 sm:py-3 sm:text-xs";
-
 const cellClass =
   "px-3 py-2 text-xs text-zinc-700 group-hover:bg-zinc-50/60 sm:px-4 sm:py-3 sm:text-sm";
-
-const aksiCellClass =
-  "sticky right-0 border-l border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-700 group-hover:bg-zinc-50/60 sm:static sm:border-l-0 sm:bg-transparent sm:group-hover:bg-transparent sm:px-4 sm:py-3 sm:text-sm";
 
 const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm";
@@ -67,10 +61,15 @@ export function PelayananTable({
     );
   }, [channels, query]);
 
-  function handleSaved() {
+  function handleSaved(saved: NonNullable<ChannelState["saved"]>) {
     setEditing(null);
-    // Page will refresh via revalidatePath
-    window.location.reload();
+    setChannels((cur) => {
+      const exists = cur.some((c) => c.id === saved.id);
+      if (exists) {
+        return cur.map((c) => (c.id === saved.id ? saved : c));
+      }
+      return [...cur, saved];
+    });
   }
 
   function handleDelete(id: number) {
@@ -117,7 +116,7 @@ export function PelayananTable({
               <th className={headerCellClass}>Label</th>
               <th className={headerCellClass}>URL</th>
               <th className={headerCellClass}>Status</th>
-              <th className={aksiHeaderClass}>Aksi</th>
+              <th className={headerCellClass}>Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -174,7 +173,7 @@ export function PelayananTable({
                       {c.isActive ? "Aktif" : "Non-aktif"}
                     </span>
                   </td>
-                  <td className={aksiCellClass}>
+                  <td className={cellClass}>
                     <div className="flex flex-col gap-1">
                       <button
                         type="button"

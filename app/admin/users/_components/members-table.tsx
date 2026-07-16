@@ -14,16 +14,9 @@ export type MemberLevel =
   | "diamond"
   | "premier";
 
-export type MemberRole =
-  | "super_admin"
-  | "admin_leader"
-  | "admin_staff"
-  | "member";
-
 export type Member = {
   id: string;
   username: string;
-  role: MemberRole;
   level: MemberLevel;
   creditScore: number;
   balance: string;
@@ -31,14 +24,6 @@ export type Member = {
   status: string;
   createdAt: string;
 };
-
-const ROLE_OPTIONS: { value: MemberRole | "all"; label: string }[] = [
-  { value: "all", label: "Semua Role" },
-  { value: "member", label: "Member" },
-  { value: "admin_staff", label: "Admin Staff" },
-  { value: "admin_leader", label: "Admin Leader" },
-  { value: "super_admin", label: "Super Admin" },
-];
 
 const headerCellClass =
   "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-600 sm:px-4 sm:py-3 sm:text-xs";
@@ -49,23 +34,16 @@ const aksiHeaderClass =
 const searchInputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm";
 
-const selectClass =
-  "rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm";
-
 export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
   const [members, setMembers] = useState<Member[]>(initialMembers);
   const [query, setQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState<MemberRole | "all">("all");
   const [editing, setEditing] = useState<Member | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    return members.filter((m) => {
-      if (roleFilter !== "all" && m.role !== roleFilter) return false;
-      if (!q) return true;
-      return m.username.toLowerCase().includes(q);
-    });
-  }, [members, query, roleFilter]);
+    if (!q) return members;
+    return members.filter((m) => m.username.toLowerCase().includes(q));
+  }, [members, query]);
 
   return (
     <div className="space-y-3">
@@ -80,19 +58,8 @@ export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
             className={`${searchInputClass} pl-8`}
           />
         </div>
-        <select
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value as MemberRole | "all")}
-          className={selectClass}
-        >
-          {ROLE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
         <span className="text-xs text-zinc-500 sm:ml-auto sm:text-sm">
-          {filtered.length} dari {members.length} pengguna
+          {filtered.length} dari {members.length} member
         </span>
       </div>
 
@@ -101,7 +68,6 @@ export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
           <thead className="bg-zinc-100">
             <tr>
               <th className={headerCellClass}>Username</th>
-              <th className={headerCellClass}>Role</th>
               <th className={headerCellClass}>Level</th>
               <th className={headerCellClass}>Skor Kredit</th>
               <th className={headerCellClass}>Saldo</th>
@@ -115,12 +81,12 @@ export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
             {filtered.length === 0 ? (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={8}
                   className="px-3 py-6 text-center text-xs text-zinc-500 sm:text-sm"
                 >
                   {members.length === 0
-                    ? "Belum ada pengguna terdaftar."
-                    : "Tidak ada pengguna yang cocok."}
+                    ? "Belum ada member terdaftar."
+                    : "Tidak ada member yang cocok."}
                 </td>
               </tr>
             ) : (
@@ -151,3 +117,4 @@ export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
     </div>
   );
 }
+
