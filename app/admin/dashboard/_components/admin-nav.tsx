@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LogOut, Menu, X } from "lucide-react";
 
+import { AdminLogoutButton } from "../../_components/admin-logout-button";
+
 const items = [
   { label: "Dashboard", href: "/admin/dashboard" },
   { label: "Anggota", href: "/admin/users" },
@@ -50,13 +52,7 @@ export function AdminNav({ active }: Props) {
         <span className="text-sm font-semibold text-white">
           {activeItem?.label ?? "Admin"}
         </span>
-        <Link
-          href="/admin/logout"
-          aria-label="Logout"
-          className="rounded-md p-1.5 text-rose-400 transition hover:bg-rose-500/10 hover:text-rose-300"
-        >
-          <LogOut className="size-4" />
-        </Link>
+        <AdminLogoutButton variant="icon" />
       </div>
 
       {open && (
@@ -82,13 +78,7 @@ export function AdminNav({ active }: Props) {
               );
             })}
             <li className="mt-1 border-t border-slate-700 pt-1">
-              <Link
-                href="/admin/logout"
-                onClick={() => setOpen(false)}
-                className="block rounded-md px-3 py-2 text-sm font-semibold text-rose-400 transition hover:bg-rose-500/10 hover:text-rose-300"
-              >
-                Logout
-              </Link>
+              <AdminLogoutButton className="block w-full rounded-md px-3 py-2 text-left text-sm font-semibold" />
             </li>
           </ul>
         </div>
@@ -115,12 +105,7 @@ export function AdminNav({ active }: Props) {
             );
           })}
           <li className="ml-2 sm:ml-4">
-            <Link
-              href="/admin/logout"
-              className="inline-block whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-semibold text-rose-400 transition hover:bg-rose-500/10 hover:text-rose-300 sm:px-4 sm:text-sm"
-            >
-              Logout
-            </Link>
+            <AdminLogoutButton />
           </li>
         </ul>
       </div>

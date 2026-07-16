@@ -12,6 +12,7 @@ import {
 
 import { ProfileHeader } from "./_components/header";
 import { BalanceCard } from "./_components/balance-card";
+import { LogoutRow } from "./_components/logout-row";
 import { QuickActions } from "./_components/quick-actions";
 import { PromoBanner } from "./_components/promo-banner";
 import { SecondaryActions } from "./_components/secondary-actions";
@@ -74,12 +75,7 @@ export default function ProfilPage() {
             label="Layanan Pelanggan"
             href="/support"
           />
-          <ActionRow
-            icon={LogOut}
-            label="Keluar"
-            href="/logout"
-            danger
-          />
+          <LogoutRow icon={LogOut} label="Keluar" />
         </SectionCard>
       </div>
 
