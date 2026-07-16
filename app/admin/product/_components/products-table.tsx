@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState, useTransition } from "react";
-import { ImageIcon, Package, Plus, Save, Search, Trash2, X } from "lucide-react";
+import { Package, Plus, Save, X } from "lucide-react";
 
 import {
   createProduct,
@@ -9,6 +9,7 @@ import {
   updateProduct,
   type ProductState,
 } from "@/lib/actions/products";
+import { ImageDropzone } from "@/app/_components/image-dropzone";
 
 import { Pagination } from "./pagination";
 
@@ -278,6 +279,7 @@ function ProductFormModal({
     mode === "create" ? createProduct : updateProduct,
     initialState,
   );
+  const [pendingPreview, setPendingPreview] = useState<string | null>(null);
 
   // After successful save, parent should close & update list. We rely on the
   // revalidation done server-side; modal stays until user dismisses.
@@ -291,11 +293,13 @@ function ProductFormModal({
           await formAction(fd);
           // Optimistically resolve by reading state (server returns fieldErrors or empty)
           // We let parent decide via revalidatePath; here we close & pass optimistic data.
+          const imageUrl =
+            pendingPreview ?? (mode === "edit" ? product?.imageUrl ?? null : null);
           if (mode === "create") {
             onSaved({
               id: Date.now(), // temporary id, real list will refresh via revalidate
               name: String(fd.get("name") ?? ""),
-              imageUrl: String(fd.get("imageUrl") ?? "") || null,
+              imageUrl,
               price: String(fd.get("price") ?? "0"),
               isActive: fd.get("isActive") === "on",
             });
@@ -303,7 +307,7 @@ function ProductFormModal({
             onSaved({
               ...product,
               name: String(fd.get("name") ?? product.name),
-              imageUrl: String(fd.get("imageUrl") ?? "") || product.imageUrl,
+              imageUrl,
               price: String(fd.get("price") ?? product.price),
               isActive: fd.get("isActive") === "on",
             });
@@ -328,12 +332,14 @@ function ProductFormModal({
           }
           error={state.fieldErrors?.price?.[0]}
         />
-        <Field
-          label="URL Gambar"
-          name="imageUrl"
-          defaultValue={product?.imageUrl ?? ""}
-          placeholder="https://..."
-          error={state.fieldErrors?.imageUrl?.[0]}
+        <ImageDropzone
+          label="Gambar Produk"
+          initialUrl={product?.imageUrl ?? null}
+          error={state.fieldErrors?.image?.[0]}
+          onFileChange={(file) => {
+            setPendingPreview(file ? URL.createObjectURL(file) : null);
+          }}
+          helpText="Format JPG/PNG/WEBP, maksimal 2MB."
         />
 
         <label className="flex items-center gap-2">

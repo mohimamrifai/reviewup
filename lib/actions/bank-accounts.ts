@@ -140,6 +140,54 @@ export async function deleteBankAccount(
   return {};
 }
 
+export async function updateBankAccount(
+  _prev: BankAccountState,
+  formData: FormData,
+): Promise<BankAccountState> {
+  const id = Number(formData.get("id"));
+  if (!Number.isInteger(id) || id <= 0) {
+    return { error: "ID rekening tidak valid." };
+  }
+
+  const parsed = bankAccountSchema.safeParse({
+    bankName: formData.get("bankName"),
+    accountName: formData.get("accountName"),
+    accountNumber: formData.get("accountNumber"),
+    backupPhone: formData.get("backupPhone") || undefined,
+  });
+
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  let userId: string;
+  try {
+    userId = await requireUserId();
+  } catch {
+    return { error: "Sesi habis, silakan login ulang." };
+  }
+
+  const updated = await db
+    .update(bankAccounts)
+    .set({
+      bankName: parsed.data.bankName,
+      accountName: parsed.data.accountName,
+      accountNumber: parsed.data.accountNumber,
+      backupPhone: parsed.data.backupPhone || null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.userId, userId)))
+    .returning({ id: bankAccounts.id });
+
+  if (!updated.length) {
+    return { error: "Rekening tidak ditemukan." };
+  }
+
+  revalidatePath("/bank");
+  revalidatePath("/withdraw");
+  return {};
+}
+
 export async function setPrimaryBankAccount(
   _prev: BankAccountState,
   formData: FormData,

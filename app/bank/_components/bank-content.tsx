@@ -1,14 +1,16 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
-import { Landmark, MoreVertical, Plus, Save, Star, Trash2, X } from "lucide-react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { Landmark, MoreVertical, Pencil, Plus, Save, Star, Trash2, X } from "lucide-react";
 
 import {
   addBankAccount,
   deleteBankAccount,
   setPrimaryBankAccount,
+  updateBankAccount,
   type BankAccountState,
 } from "@/lib/actions/bank-accounts";
+import { useToast } from "@/app/_components/toast";
 
 const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 sm:text-sm";
@@ -27,9 +29,10 @@ type Bank = {
 const initialState: BankAccountState = {};
 
 export function BankContent({ banks: initialBanks }: { banks: Bank[] }) {
-  const [open, setOpen] = useState(false);
   const [menuId, setMenuId] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [editing, setEditing] = useState<Bank | null>(null);
+  const [adding, setAdding] = useState(false);
 
   return (
     <div className="space-y-3">
@@ -77,9 +80,20 @@ export function BankContent({ banks: initialBanks }: { banks: Bank[] }) {
                   </button>
                   {menuId === b.id && (
                     <div
-                      className="absolute right-0 top-full z-20 mt-1 w-40 overflow-hidden rounded-md border border-zinc-200 bg-white shadow-lg"
+                      className="absolute right-0 top-full z-20 mt-1 w-44 overflow-hidden rounded-md border border-zinc-200 bg-white shadow-lg"
                       onClick={(e) => e.stopPropagation()}
                     >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuId(null);
+                          setEditing(b);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-700 transition hover:bg-zinc-50 sm:text-sm"
+                      >
+                        <Pencil className="size-3.5" />
+                        Edit
+                      </button>
                       {!b.isPrimary && (
                         <button
                           type="button"
@@ -89,7 +103,7 @@ export function BankContent({ banks: initialBanks }: { banks: Bank[] }) {
                             fd.set("id", String(b.id));
                             startPrimary(fd);
                           }}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-700 transition hover:bg-zinc-50 sm:text-sm"
+                          className="flex w-full items-center gap-2 border-t border-zinc-100 px-3 py-2 text-left text-xs text-zinc-700 transition hover:bg-zinc-50 sm:text-sm"
                         >
                           <Star className="size-3.5" />
                           Jadikan Utama
@@ -117,15 +131,26 @@ export function BankContent({ banks: initialBanks }: { banks: Bank[] }) {
 
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => setAdding(true)}
         className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 active:bg-emerald-800 sm:py-3 sm:text-sm"
       >
         <Plus className="size-4" />
         Menambahkan
       </button>
 
-      {open && (
-        <AddBankModal onClose={() => setOpen(false)} onSaved={() => setOpen(false)} />
+      {adding && (
+        <BankFormModal
+          mode="create"
+          onClose={() => setAdding(false)}
+        />
+      )}
+
+      {editing && (
+        <BankFormModal
+          mode="edit"
+          initial={editing}
+          onClose={() => setEditing(null)}
+        />
       )}
 
       {deleteId !== null && (
@@ -139,37 +164,48 @@ export function BankContent({ banks: initialBanks }: { banks: Bank[] }) {
   );
 }
 
-function useAddBank() {
-  const [state, formAction, isPending] = useActionState(
-    addBankAccount,
-    initialState,
-  );
-  return { state, formAction, isPending };
-}
-
-function AddBankModal({
+function BankFormModal({
+  mode,
+  initial,
   onClose,
-  onSaved,
 }: {
+  mode: "create" | "edit";
+  initial?: Bank;
   onClose: () => void;
-  onSaved: () => void;
 }) {
-  const { state, formAction, isPending } = useAddBank();
+  const action = mode === "create" ? addBankAccount : updateBankAccount;
+  const [state, formAction, isPending] = useActionState(action, initialState);
+  const skipFirstRun = useRef(true);
+
+  useEffect(() => {
+    // Skip the first mount so the modal doesn't auto-close before submit.
+    if (skipFirstRun.current) {
+      skipFirstRun.current = false;
+      return;
+    }
+    if (!isPending && !state.error && !state.fieldErrors) {
+      onClose();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPending, state]);
 
   return (
-    <ModalShell onClose={onClose} title="Tambah Rekening">
+    <ModalShell
+      onClose={onClose}
+      title={mode === "create" ? "Tambah Rekening" : "Edit Rekening"}
+    >
       <form
         action={(fd) => {
+          if (mode === "edit" && initial) fd.set("id", String(initial.id));
           formAction(fd);
-          if (!state.error) onSaved();
         }}
         className="space-y-3"
       >
-        <BankFormFields state={state} />
+        <BankFormFields state={state} initial={initial} />
         <ModalActions
           onCancel={onClose}
           isPending={isPending}
-          submitLabel="Simpan"
+          submitLabel={mode === "create" ? "Simpan" : "Perbarui"}
         />
       </form>
     </ModalShell>
@@ -186,12 +222,18 @@ function DeleteConfirm({
   onDeleted: () => void;
 }) {
   const [, startTransition] = useTransition();
+  const { show } = useToast();
 
   function handleDelete() {
     const fd = new FormData();
     fd.set("id", String(id));
     startTransition(async () => {
-      await deleteBankAccount({}, fd);
+      const res = await deleteBankAccount({}, fd);
+      if (res.error) {
+        show(res.error, "error");
+        return;
+      }
+      show("Rekening dihapus.", "success");
       onDeleted();
     });
   }
@@ -255,24 +297,33 @@ function ModalShell({
   );
 }
 
-function BankFormFields({ state }: { state: BankAccountState }) {
+function BankFormFields({
+  state,
+  initial,
+}: {
+  state: BankAccountState;
+  initial?: Bank;
+}) {
   return (
     <div className="space-y-3">
       <Field
         label="Nama Bank"
         name="bankName"
+        defaultValue={initial?.bankName}
         placeholder="cth: BCA, BNI, BRI"
         error={state.fieldErrors?.bankName?.[0]}
       />
       <Field
         label="Nama Pemilik"
         name="accountName"
+        defaultValue={initial?.accountName}
         placeholder="Sesuai buku tabungan"
         error={state.fieldErrors?.accountName?.[0]}
       />
       <Field
         label="Nomor Rekening"
         name="accountNumber"
+        defaultValue={initial?.accountNumber}
         placeholder="cth: 1234567890"
         inputMode="numeric"
         error={state.fieldErrors?.accountNumber?.[0]}
@@ -285,6 +336,7 @@ function BankFormFields({ state }: { state: BankAccountState }) {
           </>
         }
         name="backupPhone"
+        defaultValue={initial?.backupPhone ?? ""}
         placeholder="cth: 081234567890"
         inputMode="tel"
         error={state.fieldErrors?.backupPhone?.[0]}
@@ -301,12 +353,14 @@ function BankFormFields({ state }: { state: BankAccountState }) {
 function Field({
   label,
   name,
+  defaultValue,
   placeholder,
   inputMode,
   error,
 }: {
   label: React.ReactNode;
   name: string;
+  defaultValue?: string;
   placeholder?: string;
   inputMode?: "numeric" | "tel" | "text";
   error?: string;
@@ -317,6 +371,7 @@ function Field({
       <input
         type="text"
         name={name}
+        defaultValue={defaultValue}
         placeholder={placeholder}
         inputMode={inputMode}
         className={inputClass}

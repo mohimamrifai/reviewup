@@ -7,6 +7,7 @@ import {
   submitDeposit,
   type DepositState,
 } from "@/lib/actions/deposits";
+import { ImageDropzone } from "@/app/_components/image-dropzone";
 
 const bankInfo = {
   bank: "BANK MNC",
@@ -151,24 +152,14 @@ export function RechargeForm() {
           </div>
 
           <div>
-            <label
-              htmlFor="proof"
-              className={`mb-1 block ${labelClass}`}
-            >
-              Upload Bukti Transfer
-            </label>
-            <input
-              id="proof"
+            <ImageDropzone
               name="proof"
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/jpg"
-              className="block w-full text-xs text-zinc-700 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-emerald-700 hover:file:bg-emerald-100 sm:text-sm sm:file:text-sm"
+              label="Upload Bukti Transfer"
+              required
+              maxSize={5 * 1024 * 1024}
+              error={state.fieldErrors?.proof?.[0]}
+              helpText="Format JPG/PNG/WEBP, maksimal 5MB."
             />
-            {state.fieldErrors?.proof?.[0] && (
-              <p className="mt-1 text-xs text-rose-600">
-                {state.fieldErrors.proof[0]}
-              </p>
-            )}
           </div>
 
           {state.error && (
