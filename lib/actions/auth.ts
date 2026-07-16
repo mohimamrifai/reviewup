@@ -98,6 +98,18 @@ export async function adminSignIn(
   redirect("/admin/dashboard");
 }
 
+function readableErrorMessage(raw: unknown): string {
+  if (typeof raw !== "string") return "Gagal membuat akun.";
+  const trimmed = raw.trim();
+  if (!trimmed) return "Gagal membuat akun.";
+  // Supabase kadang return JSON-stringify dari object kosong
+  // atau string yang cuma berisi "{}" / "[]" — tampilkan generic saja.
+  if (trimmed === "{}" || trimmed === "[]" || trimmed === "null") {
+    return "Gagal membuat akun.";
+  }
+  return trimmed;
+}
+
 export async function signUp(
   _prev: AuthState,
   formData: FormData,
@@ -162,7 +174,7 @@ export async function signUp(
     if (createError?.message?.toLowerCase().includes("already")) {
       return { fieldErrors: { namaPengguna: ["Nama pengguna sudah dipakai."] } };
     }
-    return { error: createError?.message ?? "Gagal membuat akun." };
+    return { error: readableErrorMessage(createError?.message) };
   }
 
   // 2. Sign in dengan anon client (email sudah confirmed, jadi tidak butuh
@@ -176,7 +188,7 @@ export async function signUp(
     return {
       error:
         "Akun berhasil dibuat, tetapi login otomatis gagal: " +
-        signInError.message,
+        readableErrorMessage(signInError.message),
     };
   }
 

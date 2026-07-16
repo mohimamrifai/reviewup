@@ -40,12 +40,27 @@ export default function RegisterPage() {
       fd.append(k, v);
     }
     startTransition(async () => {
-      const result = await signUp(state, fd);
-      setState(result);
+      try {
+        const result = await signUp(state, fd);
+        setState(result ?? {});
+      } catch (err) {
+        setState({
+          error:
+            err instanceof Error
+              ? err.message
+              : "Terjadi kesalahan tak terduga. Silakan coba lagi.",
+        });
+      }
     });
   }
 
   const { errors } = form.formState;
+  // Hanya render error kalau string yang punya isi bermakna.
+  // Defensive: kalau backend sempat kirim "{}" / "[]" / object, jangan tampilkan.
+  const topError =
+    typeof state.error === "string" && state.error.trim().length > 0
+      ? state.error
+      : null;
 
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-6 sm:py-12">
@@ -133,11 +148,11 @@ export default function RegisterPage() {
           </FormField>
         </div>
 
-        {state.error && (
+        {topError && topError !== "{}" && topError !== "[]" && topError !== "null" ? (
           <p className="mt-3 text-center text-xs font-medium text-rose-600 sm:mt-4 sm:text-sm">
-            {state.error}
+            {topError}
           </p>
-        )}
+        ) : null}
 
         <div className="mt-5 sm:mt-7">
           <button
