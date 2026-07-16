@@ -224,12 +224,63 @@ export async function signUp(
       errDesc.includes("already") ||
       (createError as { code?: string } | null)?.code === "email_exists"
     ) {
-      return {
-        fieldErrors: { namaPengguna: ["Nama pengguna sudah dipakai."] },
-        error: `Nama pengguna sudah dipakai. (${detail})`,
-      };
+      // Auto-recovery: kalau user ada di auth.users tapi tidak punya profile
+      // (orphan dari percobaan register yang gagal karena trigger error),
+      // hapus dan retry sekali.
+      const { data: list } = await admin.auth.admin.listUsers();
+      const orphan = list?.users?.find(
+        (u) => u.email?.toLowerCase() === syntheticEmail(username),
+      );
+      if (orphan) {
+        const { data: existingProfile } = await admin
+          .from("profiles")
+          .select("id")
+          .eq("id", orphan.id)
+          .maybeSingle();
+        if (!existingProfile) {
+          console.warn(
+            "[signUp] found orphan auth.users without profile, deleting and retrying:",
+            orphan.id,
+          );
+          await admin.auth.admin.deleteUser(orphan.id);
+          // Retry sekali
+          const retry = await admin.auth.admin.createUser({
+            email: syntheticEmail(username),
+            password: parsed.data.kataSandi,
+            email_confirm: true,
+            user_metadata: {
+              username,
+              role: "member",
+              referral_code: referralCode,
+              withdraw_password_hash: parsed.data.sandiPenarikan,
+            },
+          });
+          if (retry.error || !retry.data?.user) {
+            console.error("[signUp] retry createUser error:", retry.error);
+            return {
+              fieldErrors: { namaPengguna: ["Nama pengguna sudah dipakai."] },
+              error:
+                "Nama pengguna sudah dipakai dan auto-recovery gagal: " +
+                describeSupabaseError(retry.error),
+            };
+          }
+          created = retry.data;
+          createError = null;
+        } else {
+          return {
+            fieldErrors: { namaPengguna: ["Nama pengguna sudah dipakai."] },
+            error: `Nama pengguna sudah dipakai. (${detail})`,
+          };
+        }
+      } else {
+        return {
+          fieldErrors: { namaPengguna: ["Nama pengguna sudah dipakai."] },
+          error: `Nama pengguna sudah dipakai. (${detail})`,
+        };
+      }
+    } else {
+      return { error: detail };
     }
-    return { error: detail };
   }
 
   // 2. Sign in dengan anon client (email sudah confirmed, jadi tidak butuh
