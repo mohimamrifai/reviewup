@@ -26,7 +26,7 @@
 - [x] approve/reject withdrawal (completed → kosongkan frozen, rejected → kembalikan ke saldo)
 - [x] tools anggota: edit level, credit_score, saldo manual (+/- dengan catatan), reset password
 - [x] generate referral_code unik per Admin Staf
-- [ ] dashboard admin (/admin/dashboard) dengan statistik real + filter date range custom
+- [x] dashboard admin (/admin/dashboard) dengan statistik real + filter date range custom
 - [x] audit log tabel untuk perubahan saldo manual oleh admin
 
 ## Shared / Infrastructure
@@ -35,9 +35,9 @@
 - [x] hitung komisi otomatis saat task selesai (berdasarkan level member)
 - [x] auto-update level member berdasarkan akumulasi transaksi sukses
 - [x] hapus lib/dummy-channels.ts & dummy lain yang sudah di-replace DB
-- [ ] loading & empty states di semua halaman yang query DB
-- [ ] error handling & toast notification global
-- [ ] form validation client + server (zod + react-hook-form)
+- [x] loading & empty states di semua halaman yang query DB
+- [x] error handling & toast notification global
+- [x] form validation client + server (zod + react-hook-form)
 
 ---
 

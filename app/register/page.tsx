@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useState, useTransition } from "react";
 
 import {
   signUp,
   type AuthState,
 } from "@/lib/actions/auth";
+import { useZodForm } from "@/lib/forms";
+import { registerSchema, type RegisterInput } from "@/lib/schemas/auth";
+import { FormField } from "../_components/form-field";
 import { PasswordInput } from "../_components/password-input";
 
 const initialState: AuthState = {};
@@ -15,97 +18,119 @@ const inputClass =
   "w-full rounded-xl border border-input-border bg-card px-4 py-2 text-sm text-foreground outline-none transition placeholder:text-placeholder focus:border-brand focus:ring-2 focus:ring-brand/20 sm:px-5 sm:py-3 sm:text-base";
 
 export default function RegisterPage() {
-  const [state, formAction, isPending] = useActionState(signUp, initialState);
+  const [state, setState] = useState<AuthState>(initialState);
+  const [isPending, startTransition] = useTransition();
+
+  const form = useZodForm({
+    schema: registerSchema,
+    serverState: state,
+    defaultValues: {
+      kodeUndangan: "",
+      namaPengguna: "",
+      kataSandi: "",
+      konfirmasiSandi: "",
+      sandiPenarikan: "",
+      konfirmasiSandiPenarikan: "",
+    },
+  });
+
+  function onValid(values: RegisterInput) {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(values)) {
+      fd.append(k, v);
+    }
+    startTransition(async () => {
+      const result = await signUp(state, fd);
+      setState(result);
+    });
+  }
+
+  const { errors } = form.formState;
 
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-6 sm:py-12">
       <form
-        action={formAction}
+        onSubmit={form.handleSubmit(onValid)}
         className="w-full max-w-sm rounded-2xl bg-card p-5 shadow-sm sm:max-w-lg sm:p-9"
+        noValidate
       >
         <h1 className="mb-5 text-center text-2xl font-bold text-brand sm:mb-7 sm:text-3xl">
           Daftar Akun
         </h1>
 
         <div className="space-y-2.5 sm:space-y-4">
-          <div>
-            <input
-              type="text"
-              name="kodeUndangan"
-              placeholder="Kode Undangan"
-              autoComplete="off"
-              className={inputClass}
-              required
-            />
-            {state.fieldErrors?.kodeUndangan?.[0] && (
-              <p className="mt-1 text-xs text-rose-600">
-                {state.fieldErrors.kodeUndangan[0]}
-              </p>
+          <FormField name="kodeUndangan" error={errors.kodeUndangan}>
+            {(props) => (
+              <input
+                {...props}
+                {...form.register("kodeUndangan")}
+                type="text"
+                placeholder="Kode Undangan"
+                autoComplete="off"
+                className={inputClass}
+              />
             )}
-          </div>
-          <div>
-            <input
-              type="text"
-              name="namaPengguna"
-              placeholder="Nama Pengguna"
-              autoComplete="username"
-              className={inputClass}
-              required
-            />
-            {state.fieldErrors?.namaPengguna?.[0] && (
-              <p className="mt-1 text-xs text-rose-600">
-                {state.fieldErrors.namaPengguna[0]}
-              </p>
+          </FormField>
+
+          <FormField name="namaPengguna" error={errors.namaPengguna}>
+            {(props) => (
+              <input
+                {...props}
+                {...form.register("namaPengguna")}
+                type="text"
+                placeholder="Nama Pengguna"
+                autoComplete="username"
+                className={inputClass}
+              />
             )}
-          </div>
-          <div>
-            <PasswordInput
-              name="kataSandi"
-              placeholder="Kata Sandi"
-              autoComplete="new-password"
-            />
-            {state.fieldErrors?.kataSandi?.[0] && (
-              <p className="mt-1 text-xs text-rose-600">
-                {state.fieldErrors.kataSandi[0]}
-              </p>
+          </FormField>
+
+          <FormField name="kataSandi" error={errors.kataSandi}>
+            {(props) => (
+              <PasswordInput
+                {...props}
+                {...form.register("kataSandi")}
+                placeholder="Kata Sandi"
+                autoComplete="new-password"
+              />
             )}
-          </div>
-          <div>
-            <PasswordInput
-              name="konfirmasiSandi"
-              placeholder="Konfirmasi Sandi"
-              autoComplete="new-password"
-            />
-            {state.fieldErrors?.konfirmasiSandi?.[0] && (
-              <p className="mt-1 text-xs text-rose-600">
-                {state.fieldErrors.konfirmasiSandi[0]}
-              </p>
+          </FormField>
+
+          <FormField name="konfirmasiSandi" error={errors.konfirmasiSandi}>
+            {(props) => (
+              <PasswordInput
+                {...props}
+                {...form.register("konfirmasiSandi")}
+                placeholder="Konfirmasi Sandi"
+                autoComplete="new-password"
+              />
             )}
-          </div>
-          <div>
-            <PasswordInput
-              name="sandiPenarikan"
-              placeholder="Sandi Penarikan"
-              autoComplete="off"
-            />
-            {state.fieldErrors?.sandiPenarikan?.[0] && (
-              <p className="mt-1 text-xs text-rose-600">
-                {state.fieldErrors.sandiPenarikan[0]}
-              </p>
+          </FormField>
+
+          <FormField name="sandiPenarikan" error={errors.sandiPenarikan}>
+            {(props) => (
+              <PasswordInput
+                {...props}
+                {...form.register("sandiPenarikan")}
+                placeholder="Sandi Penarikan"
+                autoComplete="off"
+              />
             )}
-          </div>
-          <div>
-            <PasswordInput
-              name="konfirmasiSandiPenarikan"
-              placeholder="Konfirmasi Sandi Penarikan"
-              autoComplete="off"
-            />
-            {state.fieldErrors?.konfirmasiSandiPenarikan?.[0] && (
-              <p className="mt-1 text-xs text-rose-600">
-                {state.fieldErrors.konfirmasiSandiPenarikan[0]}
-              </p>
+          </FormField>
+
+          <FormField
+            name="konfirmasiSandiPenarikan"
+            error={errors.konfirmasiSandiPenarikan}
+          >
+            {(props) => (
+              <PasswordInput
+                {...props}
+                {...form.register("konfirmasiSandiPenarikan")}
+                placeholder="Konfirmasi Sandi Penarikan"
+                autoComplete="off"
+              />
             )}
-          </div>
+          </FormField>
         </div>
 
         {state.error && (

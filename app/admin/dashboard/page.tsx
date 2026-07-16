@@ -1,161 +1,84 @@
-"use client";
-
-import { useMemo, useState } from "react";
-
 import { AdminNav } from "./_components/admin-nav";
-import { DateRangePicker } from "./_components/date-range-picker";
+import { DashboardDateRange } from "./_components/dashboard-date-range";
 import { PeriodCard } from "./_components/period-card";
 import { StatCard } from "./_components/stat-card";
+import { getDashboardStats, parseDateRange } from "@/lib/dashboard";
 
-function formatRupiah(amount: number): string {
-  return `Rp ${amount.toLocaleString("id-ID")}`;
+function formatRupiah(value: number): string {
+  return `Rp ${value.toLocaleString("id-ID")}`;
 }
 
-function getSeed(from: string, to: string): number {
-  return (from + to)
-    .split("")
-    .reduce((acc, c) => acc + c.charCodeAt(0), 0);
+function formatRupiahCompact(value: number): string {
+  if (value >= 1_000_000) return `Rp ${(value / 1_000_000).toFixed(1)} jt`;
+  if (value >= 1_000) return `Rp ${(value / 1_000).toFixed(0)}rb`;
+  return formatRupiah(value);
 }
 
-function getDashboardData(from: string, to: string) {
-  const hasRange = Boolean(from && to);
+type SearchParams = Promise<{ from?: string; to?: string }>;
 
-  if (!hasRange) {
-    return {
-      daily: [
-        {
-          label: "Pendaftaran (Hari Ini)",
-          value: "2",
-          variant: "amber" as const,
-        },
-        {
-          label: "Depo Awal (Hari Ini)",
-          value: "0",
-          variant: "emerald" as const,
-        },
-        {
-          label: "Deposit (Hari Ini)",
-          value: "Rp 0",
-          variant: "blue" as const,
-        },
-        {
-          label: "Penarikan (Hari Ini)",
-          value: "Rp 0",
-          variant: "rose" as const,
-        },
-        {
-          label: "Profit (Hari Ini)",
-          value: "Rp 0",
-          variant: "emerald" as const,
-        },
-      ],
-      periods: [
-        {
-          title: "Total Isi Ulang (Sepanjang Waktu)",
-          amount: "Rp 0",
-          variant: "blue" as const,
-        },
-        {
-          title: "Total Penarikan (Sepanjang Waktu)",
-          amount: "Rp 0",
-          variant: "red" as const,
-        },
-      ],
-    };
-  }
+export default async function AdminDashboardPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  const params = await searchParams;
+  const range = parseDateRange(params.from, params.to);
+  const stats = await getDashboardStats(range);
 
-  const days =
-    Math.floor((new Date(to).getTime() - new Date(from).getTime()) / 86_400_000) +
-    1;
-  const seed = getSeed(from, to);
-
-  const registrasi = days * 2 + (seed % 7);
-  const depoAwal = seed % 3;
-  const deposit = days * 12_500 + (seed % 9) * 4_500;
-  const penarikan = days * 3_200 + (seed % 5) * 2_100;
-  const profit = Math.max(0, deposit - penarikan);
-  const totalIsiUlang = days * 8_750 + (seed % 11) * 5_200;
-  const totalPenarikan = days * 2_400 + (seed % 6) * 1_800;
-
-  return {
-    daily: [
-      {
-        label: "Pendaftaran (Periode Dipilih)",
-        value: String(registrasi),
-        variant: "amber" as const,
-      },
-      {
-        label: "Depo Awal (Periode Dipilih)",
-        value: String(depoAwal),
-        variant: "emerald" as const,
-      },
-      {
-        label: "Deposit (Periode Dipilih)",
-        value: formatRupiah(deposit),
-        variant: "blue" as const,
-      },
-      {
-        label: "Penarikan (Periode Dipilih)",
-        value: formatRupiah(penarikan),
-        variant: "rose" as const,
-      },
-      {
-        label: "Profit (Periode Dipilih)",
-        value: formatRupiah(profit),
-        variant: "emerald" as const,
-      },
-    ],
-    periods: [
-      {
-        title: "Total Isi Ulang (Periode Dipilih)",
-        amount: formatRupiah(totalIsiUlang),
-        variant: "blue" as const,
-      },
-      {
-        title: "Total Penarikan (Periode Dipilih)",
-        amount: formatRupiah(totalPenarikan),
-        variant: "red" as const,
-      },
-    ],
-  };
-}
-
-export default function AdminDashboardPage() {
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-
-  const { daily, periods } = useMemo(
-    () => getDashboardData(from, to),
-    [from, to]
-  );
+  const periodLabel = range ? "Periode Dipilih" : "Sepanjang Waktu";
+  const periodLabelToday = range ? "Periode Dipilih" : "Hari Ini";
 
   return (
     <div className="min-h-screen bg-zinc-100 text-zinc-900">
       <AdminNav active="Dashboard" />
 
       <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
-        <DateRangePicker
-          from={from}
-          to={to}
-          onFromChange={setFrom}
-          onToChange={setTo}
-          onReset={() => {
-            setFrom("");
-            setTo("");
-          }}
-        />
+        <DashboardDateRange />
 
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-6">
-          <StatCard label="Total Member" value="2" variant="indigo" />
-          {daily.map((stat) => (
-            <StatCard key={stat.label} {...stat} />
-          ))}
+          <StatCard
+            label="Total Member"
+            value={stats.totalMembers.toLocaleString("id-ID")}
+            variant="indigo"
+          />
+          <StatCard
+            label={`Pendaftaran (${periodLabelToday})`}
+            value={stats.rangeRegistrations.toLocaleString("id-ID")}
+            variant="amber"
+          />
+          <StatCard
+            label={`Depo Awal (${periodLabelToday})`}
+            value={stats.rangeDepositRequests.toLocaleString("id-ID")}
+            variant="emerald"
+          />
+          <StatCard
+            label={`Deposit (${periodLabelToday})`}
+            value={formatRupiah(stats.rangeDepositAmount)}
+            variant="blue"
+          />
+          <StatCard
+            label={`Penarikan (${periodLabelToday})`}
+            value={formatRupiah(stats.rangeWithdrawalAmount)}
+            variant="rose"
+          />
+          <StatCard
+            label={`Profit (${periodLabelToday})`}
+            value={formatRupiah(stats.rangeProfit)}
+            variant="emerald"
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2">
-          {periods.map((period) => (
-            <PeriodCard key={period.title} {...period} />
-          ))}
+          <PeriodCard
+            title={`Total Isi Ulang (${periodLabel})`}
+            amount={formatRupiahCompact(stats.totalDepositAmount)}
+            variant="blue"
+          />
+          <PeriodCard
+            title={`Total Penarikan (${periodLabel})`}
+            amount={formatRupiahCompact(stats.totalWithdrawalAmount)}
+            variant="red"
+          />
         </div>
       </div>
     </div>
