@@ -5,7 +5,6 @@ import { db } from "@/lib/db";
 import { deposits, profiles, withdrawals } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
 
-import { AdminNav } from "../dashboard/_components/admin-nav";
 import { StaffsTable } from "./_components/staffs-table";
 
 export default async function AdminStaffsPage() {
@@ -145,44 +144,36 @@ export default async function AdminStaffsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-100 text-zinc-900">
-      <AdminNav
-        active="Semua Staff"
-        isSuperAdmin={isSuperAdmin}
-        isLeader={!isSuperAdmin}
-      />
-
-      <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
-        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 sm:p-5">
-          <h1 className="text-base font-bold text-zinc-900 sm:text-lg">
-            Semua Staff
-          </h1>
-          <p className="mt-1 text-[11px] text-zinc-600 sm:text-xs">
-            {isSuperAdmin
-              ? "Daftar seluruh Admin Staff beserta ringkasan pencapaian anggota mereka. Klik username untuk melihat detail per bulan."
-              : "Daftar staff di bawah Anda beserta ringkasan pencapaian anggota mereka. Klik username untuk melihat detail per bulan."}
-          </p>
-        </div>
-
-        <StaffsTable
-          initialStaffs={staffRows.map((r) => {
-            const s = statsByStaff.get(r.id)!;
-            return {
-              id: r.id,
-              username: r.username,
-              referralCode: r.referralCode,
-              status: r.status,
-              createdAt: r.createdAt.toISOString(),
-              memberCount: s.memberCount,
-              totalDeposit: s.totalDeposit,
-              totalWithdrawal: s.totalWithdrawal,
-              leaderUsername: r.leaderId
-                ? leaderNameById.get(r.leaderId) ?? null
-                : null,
-            };
-          })}
-        />
+    <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
+      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 sm:p-5">
+        <h1 className="text-base font-bold text-zinc-900 sm:text-lg">
+          Semua Staff
+        </h1>
+        <p className="mt-1 text-[11px] text-zinc-600 sm:text-xs">
+          {isSuperAdmin
+            ? "Daftar seluruh Admin Staff beserta ringkasan pencapaian anggota mereka. Klik username untuk melihat detail per bulan."
+            : "Daftar staff di bawah Anda beserta ringkasan pencapaian anggota mereka. Klik username untuk melihat detail per bulan."}
+        </p>
       </div>
+
+      <StaffsTable
+        initialStaffs={staffRows.map((r) => {
+          const s = statsByStaff.get(r.id)!;
+          return {
+            id: r.id,
+            username: r.username,
+            referralCode: r.referralCode,
+            status: r.status,
+            createdAt: r.createdAt.toISOString(),
+            memberCount: s.memberCount,
+            totalDeposit: s.totalDeposit,
+            totalWithdrawal: s.totalWithdrawal,
+            leaderUsername: r.leaderId
+              ? leaderNameById.get(r.leaderId) ?? null
+              : null,
+          };
+        })}
+      />
     </div>
   );
 }

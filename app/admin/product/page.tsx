@@ -3,7 +3,6 @@ import { desc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { products } from "@/lib/db/schema";
 
-import { AdminNav } from "../dashboard/_components/admin-nav";
 import { ProductsTable } from "./_components/products-table";
 
 export default async function AdminProductPage() {
@@ -19,20 +18,16 @@ export default async function AdminProductPage() {
     .orderBy(desc(products.createdAt));
 
   return (
-    <div className="min-h-screen bg-zinc-100 text-zinc-900">
-      <AdminNav active="Produk" />
-
-      <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
-        <ProductsTable
-          initialProducts={rows.map((r) => ({
-            id: r.id,
-            name: r.name,
-            imageUrl: r.imageUrl,
-            price: r.price,
-            isActive: r.isActive,
-          }))}
-        />
-      </div>
+    <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
+      <ProductsTable
+        initialProducts={rows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          imageUrl: r.imageUrl,
+          price: r.price,
+          isActive: r.isActive,
+        }))}
+      />
     </div>
   );
 }

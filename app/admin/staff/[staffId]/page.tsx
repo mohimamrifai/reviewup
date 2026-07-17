@@ -6,7 +6,6 @@ import { profiles } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import { getStaffDetailStats } from "@/lib/team";
 
-import { AdminNav } from "../../dashboard/_components/admin-nav";
 import { StaffDetailContent } from "./_components/staff-detail-content";
 
 type SearchParams = Promise<{ from?: string; to?: string }>;
@@ -72,28 +71,20 @@ export default async function StaffDetailPage({
   }
 
   return (
-    <div className="min-h-screen bg-zinc-100 text-zinc-900">
-      <AdminNav
-        active="Semua Staff"
-        isSuperAdmin={me.role === "super_admin"}
-        isLeader={me.role === "admin_leader"}
+    <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
+      <StaffDetailContent
+        staff={{
+          id: staff.id,
+          username: staff.username,
+          referralCode: staff.referralCode,
+          status: staff.status,
+          createdAt: staff.createdAt.toISOString(),
+          leaderUsername,
+        }}
+        stats={stats}
+        initialFrom={from ?? ""}
+        initialTo={to ?? ""}
       />
-
-      <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
-        <StaffDetailContent
-          staff={{
-            id: staff.id,
-            username: staff.username,
-            referralCode: staff.referralCode,
-            status: staff.status,
-            createdAt: staff.createdAt.toISOString(),
-            leaderUsername,
-          }}
-          stats={stats}
-          initialFrom={from ?? ""}
-          initialTo={to ?? ""}
-        />
-      </div>
     </div>
   );
 }

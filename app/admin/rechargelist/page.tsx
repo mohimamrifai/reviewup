@@ -7,7 +7,6 @@ import { deposits, profiles } from "@/lib/db/schema";
 import { resolveProofUrl } from "@/lib/supabase/proof-url";
 import { createClient } from "@/lib/supabase/server";
 
-import { AdminNav } from "../dashboard/_components/admin-nav";
 import { RechargesTable } from "./_components/recharges-table";
 
 export default async function AdminRechargeListPage() {
@@ -58,12 +57,8 @@ export default async function AdminRechargeListPage() {
   );
 
   return (
-    <div className="min-h-screen bg-zinc-100 text-zinc-900">
-      <AdminNav active="Deposit" />
-
-      <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
-        <RechargesTable initialRecharges={resolvedRecharges} />
-      </div>
+    <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
+      <RechargesTable initialRecharges={resolvedRecharges} />
     </div>
   );
 }

@@ -5,7 +5,6 @@ import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
 
-import { AdminNav } from "../dashboard/_components/admin-nav";
 import { TeamTable } from "./_components/team-table";
 
 export default async function AdminTeamPage() {
@@ -84,42 +83,34 @@ export default async function AdminTeamPage() {
   if (!isSuperAdmin) leaderNameById.set(me.id, "(Anda)");
 
   return (
-    <div className="min-h-screen bg-zinc-100 text-zinc-900">
-      <AdminNav
-        active="Tim"
-        isSuperAdmin={isSuperAdmin}
-        isLeader={!isSuperAdmin}
-      />
-
-      <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
-        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 sm:p-5">
-          <h1 className="text-base font-bold text-zinc-900 sm:text-lg">
-            {isSuperAdmin ? "Manajemen Tim Admin" : "Tim Staff Anda"}
-          </h1>
-          <p className="mt-1 text-[11px] text-zinc-600 sm:text-xs">
-            {isSuperAdmin
-              ? "Buat akun Admin Leader atau Admin Staff. Setiap admin baru akan otomatis dibuatkan profil di sistem."
-              : "Buat akun Admin Staff di bawah Anda. Anda hanya dapat mengelola staff yang berafiliasi dengan Anda."}
-          </p>
-        </div>
-
-        <TeamTable
-          initialAdmins={adminRows.map((r) => ({
-            id: r.id,
-            username: r.username,
-            role: r.role,
-            referralCode: r.referralCode,
-            status: r.status,
-            createdAt: r.createdAt.toISOString(),
-            memberCount: memberCountByStaff.get(r.id) ?? 0,
-            leaderId: r.leaderId,
-            leaderUsername: r.leaderId ? leaderNameById.get(r.leaderId) ?? null : null,
-          }))}
-          leaders={leaderRows.map((l) => ({ id: l.id, username: l.username }))}
-          isCurrentSuperAdmin={isSuperAdmin}
-          currentLeaderId={me.id}
-        />
+    <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
+      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 sm:p-5">
+        <h1 className="text-base font-bold text-zinc-900 sm:text-lg">
+          {isSuperAdmin ? "Manajemen Tim Admin" : "Tim Staff Anda"}
+        </h1>
+        <p className="mt-1 text-[11px] text-zinc-600 sm:text-xs">
+          {isSuperAdmin
+            ? "Buat akun Admin Leader atau Admin Staff. Setiap admin baru akan otomatis dibuatkan profil di sistem."
+            : "Buat akun Admin Staff di bawah Anda. Anda hanya dapat mengelola staff yang berafiliasi dengan Anda."}
+        </p>
       </div>
+
+      <TeamTable
+        initialAdmins={adminRows.map((r) => ({
+          id: r.id,
+          username: r.username,
+          role: r.role,
+          referralCode: r.referralCode,
+          status: r.status,
+          createdAt: r.createdAt.toISOString(),
+          memberCount: memberCountByStaff.get(r.id) ?? 0,
+          leaderId: r.leaderId,
+          leaderUsername: r.leaderId ? leaderNameById.get(r.leaderId) ?? null : null,
+        }))}
+        leaders={leaderRows.map((l) => ({ id: l.id, username: l.username }))}
+        isCurrentSuperAdmin={isSuperAdmin}
+        currentLeaderId={me.id}
+      />
     </div>
   );
 }

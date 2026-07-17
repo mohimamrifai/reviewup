@@ -6,7 +6,6 @@ import { db } from "@/lib/db";
 import { bankAccounts, profiles, withdrawals } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
 
-import { AdminNav } from "../dashboard/_components/admin-nav";
 import { WithdrawsTable } from "./_components/withdraws-table";
 
 export default async function AdminWithdrawListPage() {
@@ -47,24 +46,20 @@ export default async function AdminWithdrawListPage() {
     : await baseQuery.orderBy(desc(withdrawals.createdAt));
 
   return (
-    <div className="min-h-screen bg-zinc-100 text-zinc-900">
-      <AdminNav active="Penarikan" />
-
-      <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
-        <WithdrawsTable
-          initialWithdraws={rows.map((r) => ({
-            id: r.id,
-            memberUsername: r.memberUsername ?? "(user dihapus)",
-            bankName: r.bankName ?? "—",
-            accountName: r.accountName ?? "—",
-            accountNumber: r.accountNumber ?? "—",
-            amount: r.amount,
-            status: r.status as "pending" | "completed" | "rejected",
-            notes: r.notes,
-            createdAt: r.createdAt.toISOString(),
-          }))}
-        />
-      </div>
+    <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
+      <WithdrawsTable
+        initialWithdraws={rows.map((r) => ({
+          id: r.id,
+          memberUsername: r.memberUsername ?? "(user dihapus)",
+          bankName: r.bankName ?? "—",
+          accountName: r.accountName ?? "—",
+          accountNumber: r.accountNumber ?? "—",
+          amount: r.amount,
+          status: r.status as "pending" | "completed" | "rejected",
+          notes: r.notes,
+          createdAt: r.createdAt.toISOString(),
+        }))}
+      />
     </div>
   );
 }

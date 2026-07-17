@@ -5,7 +5,6 @@ import { db } from "@/lib/db";
 import { auditLogs, profiles } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
 
-import { AdminNav } from "../dashboard/_components/admin-nav";
 import { AuditLogsTable } from "./_components/audit-logs-table";
 
 // Daftar aksi yang dipakai di sistem (untuk filter & label).
@@ -73,38 +72,34 @@ export default async function AdminAuditLogsPage() {
     .limit(500);
 
   return (
-    <div className="min-h-screen bg-zinc-100 text-zinc-900">
-      <AdminNav active="Audit Log" isSuperAdmin />
-
-      <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
-        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 sm:p-5">
-          <h1 className="text-base font-bold text-zinc-900 sm:text-lg">
-            Audit Log
-          </h1>
-          <p className="mt-1 text-[11px] text-zinc-600 sm:text-xs">
-            Riwayat semua perubahan penting yang dilakukan admin (saldo, level,
-            status, withdraw, dan akun admin). 500 entri terbaru.
-          </p>
-        </div>
-
-        <AuditLogsTable
-          initialLogs={rows.map((r) => ({
-            id: r.id,
-            action: r.action,
-            amount: r.amount,
-            note: r.note,
-            metadata: r.metadata,
-            createdAt: r.createdAt.toISOString(),
-            actorId: r.actorId,
-            actorUsername: r.actorUsername,
-            actorRole: r.actorRole,
-            targetId: r.targetId,
-            targetUsername: r.targetUsername,
-            targetRole: r.targetRole,
-          }))}
-          actionLabels={ACTION_LABELS}
-        />
+    <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
+      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 sm:p-5">
+        <h1 className="text-base font-bold text-zinc-900 sm:text-lg">
+          Audit Log
+        </h1>
+        <p className="mt-1 text-[11px] text-zinc-600 sm:text-xs">
+          Riwayat semua perubahan penting yang dilakukan admin (saldo, level,
+          status, withdraw, dan akun admin). 500 entri terbaru.
+        </p>
       </div>
+
+      <AuditLogsTable
+        initialLogs={rows.map((r) => ({
+          id: r.id,
+          action: r.action,
+          amount: r.amount,
+          note: r.note,
+          metadata: r.metadata,
+          createdAt: r.createdAt.toISOString(),
+          actorId: r.actorId,
+          actorUsername: r.actorUsername,
+          actorRole: r.actorRole,
+          targetId: r.targetId,
+          targetUsername: r.targetUsername,
+          targetRole: r.targetRole,
+        }))}
+        actionLabels={ACTION_LABELS}
+      />
     </div>
   );
 }

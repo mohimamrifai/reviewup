@@ -7,7 +7,6 @@ import { products, profiles, taskRequests, tasks } from "@/lib/db/schema";
 import { type Level } from "@/lib/levels";
 import { createClient } from "@/lib/supabase/server";
 
-import { AdminNav } from "../dashboard/_components/admin-nav";
 import { TasksTable } from "./_components/tasks-table";
 
 export default async function AdminTaskPage() {
@@ -132,38 +131,34 @@ export default async function AdminTaskPage() {
   );
 
   return (
-    <div className="min-h-screen bg-zinc-100 text-zinc-900">
-      <AdminNav active="Tugas" />
-
-      <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
-        <TasksTable
-          initialTasks={rows.map((r) => ({
-            id: r.id,
-            kind: r.kind,
-            memberId: r.memberId,
-            memberUsername: r.memberUsername ?? "(user dihapus)",
-            memberBalance: String(r.memberBalance ?? "0"),
-            productName: r.productName,
-            price: r.price,
-            commission: r.commission,
-            status: r.status,
-            queue: r.queue,
-            createdAt: r.createdAt.toISOString(),
-            productId: r.productId,
-          }))}
-          members={memberRows.map((m) => ({
-            id: m.id,
-            username: m.username,
-            level: m.level,
-            status: m.status,
-          }))}
-          products={productRows.map((p) => ({
-            id: p.id,
-            name: p.name,
-            isActive: p.isActive,
-          }))}
-        />
-      </div>
+    <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
+      <TasksTable
+        initialTasks={rows.map((r) => ({
+          id: r.id,
+          kind: r.kind,
+          memberId: r.memberId,
+          memberUsername: r.memberUsername ?? "(user dihapus)",
+          memberBalance: String(r.memberBalance ?? "0"),
+          productName: r.productName,
+          price: r.price,
+          commission: r.commission,
+          status: r.status,
+          queue: r.queue,
+          createdAt: r.createdAt.toISOString(),
+          productId: r.productId,
+        }))}
+        members={memberRows.map((m) => ({
+          id: m.id,
+          username: m.username,
+          level: m.level,
+          status: m.status,
+        }))}
+        products={productRows.map((p) => ({
+          id: p.id,
+          name: p.name,
+          isActive: p.isActive,
+        }))}
+      />
     </div>
   );
 }
