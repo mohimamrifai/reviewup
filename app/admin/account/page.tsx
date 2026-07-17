@@ -1,13 +1,32 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
+import { redirect } from "next/navigation";
 
+import { getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { bankAccounts, profiles } from "@/lib/db/schema";
+import { createClient } from "@/lib/supabase/server";
 
 import { AdminNav } from "../dashboard/_components/admin-nav";
 import { AccountsTable } from "./_components/accounts-table";
 
 export default async function AdminAccountPage() {
-  const rows = await db
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/admin/login");
+
+  const scope = await getScope(user.id);
+  const memberIds = scope?.memberIds ?? null;
+  const unrestricted = scope?.unrestricted ?? false;
+
+  const whereClause = unrestricted
+    ? undefined
+    : memberIds && memberIds.length > 0
+      ? inArray(bankAccounts.userId, memberIds)
+      : eq(bankAccounts.userId, "__no_access__");
+
+  const baseQuery = db
     .select({
       id: bankAccounts.id,
       bankName: bankAccounts.bankName,
@@ -22,8 +41,11 @@ export default async function AdminAccountPage() {
       phone: profiles.phone,
     })
     .from(bankAccounts)
-    .innerJoin(profiles, eq(bankAccounts.userId, profiles.id))
-    .orderBy(desc(bankAccounts.createdAt));
+    .innerJoin(profiles, eq(bankAccounts.userId, profiles.id));
+
+  const rows = whereClause
+    ? await baseQuery.where(whereClause).orderBy(desc(bankAccounts.createdAt))
+    : await baseQuery.orderBy(desc(bankAccounts.createdAt));
 
   return (
     <div className="min-h-screen bg-zinc-100 text-zinc-900">

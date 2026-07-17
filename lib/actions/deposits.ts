@@ -1,10 +1,11 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
-import { deposits } from "@/lib/db/schema";
+import { deposits, profiles } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
 
 const depositSchema = z.object({
@@ -32,6 +33,16 @@ export async function submitDeposit(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Sesi habis, silakan login ulang." };
+
+  // Cek status akun: banned member tidak boleh deposit
+  const [me] = await db
+    .select({ status: profiles.status })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
+  if (me?.status === "banned") {
+    return { error: "Akun Anda diblokir. Hubungi staff terkait untuk konfirmasi." };
+  }
 
   // Parse amount
   const amountStr = String(formData.get("amount") ?? "").replace(/[^\d]/g, "");

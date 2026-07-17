@@ -1,5 +1,7 @@
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
+import { redirect } from "next/navigation";
 
+import { getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
@@ -12,25 +14,32 @@ export default async function AdminUsersPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user) redirect("/admin/login");
 
-  const conditions = [eq(profiles.role, "member")];
+  const [me] = await db
+    .select({ id: profiles.id, role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
+  if (!me || me.role === "member") redirect("/admin/login");
 
-  if (user) {
-    const [me] = await db
-      .select({ id: profiles.id, role: profiles.role })
-      .from(profiles)
-      .where(eq(profiles.id, user.id))
-      .limit(1);
+  const scope = await getScope(user.id);
+  const memberIds = scope?.memberIds ?? null;
+  const unrestricted = scope?.unrestricted ?? false;
 
-    if (me?.role === "admin_staff") {
-      conditions.push(eq(profiles.referredBy, me.id));
-    }
-  }
+  // Filter: hanya role=member, dan (kalau tidak unrestricted) sesuai scope
+  const baseWhere = eq(profiles.role, "member");
+  const whereClause = unrestricted
+    ? baseWhere
+    : memberIds && memberIds.length > 0
+      ? inArray(profiles.id, memberIds)
+      : eq(profiles.id, "__no_access__");
 
   const rows = await db
     .select({
       id: profiles.id,
       username: profiles.username,
+      phone: profiles.phone,
       level: profiles.level,
       creditScore: profiles.creditScore,
       balance: profiles.balance,
@@ -39,7 +48,7 @@ export default async function AdminUsersPage() {
       createdAt: profiles.createdAt,
     })
     .from(profiles)
-    .where(and(...conditions))
+    .where(whereClause)
     .orderBy(desc(profiles.createdAt));
 
   return (
@@ -51,6 +60,7 @@ export default async function AdminUsersPage() {
           initialMembers={rows.map((r) => ({
             id: r.id,
             username: r.username,
+            phone: r.phone,
             level: r.level,
             creditScore: r.creditScore,
             balance: r.balance,

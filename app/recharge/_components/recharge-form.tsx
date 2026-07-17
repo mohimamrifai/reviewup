@@ -9,10 +9,12 @@ import {
 } from "@/lib/actions/deposits";
 import { ImageDropzone } from "@/app/_components/image-dropzone";
 
-const bankInfo = {
-  bank: "BANK MNC",
-  accountNumber: "206010007263495",
-  accountName: "VENDA FAISHA ANANTA",
+type Account = {
+  id: number;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  notes: string | null;
 };
 
 const inputClass =
@@ -30,20 +32,26 @@ function parseAmount(s: string): number {
   return Number(s.replace(/[^\d]/g, "")) || 0;
 }
 
-export function RechargeForm() {
+export function RechargeForm({ accounts }: { accounts: Account[] }) {
   const [state, formAction, isPending] = useActionState(
     submitDeposit,
     initialState,
   );
   const [amountDisplay, setAmountDisplay] = useState("");
+  const [accountId, setAccountId] = useState<string>(
+    accounts[0]?.id?.toString() ?? "",
+  );
   const [copyOk, setCopyOk] = useState(false);
 
+  const activeAccount =
+    accounts.find((a) => a.id.toString() === accountId) ?? accounts[0] ?? null;
   const amountValue = parseAmount(amountDisplay);
 
   function handleCopy() {
+    if (!activeAccount) return;
     if (typeof navigator !== "undefined" && navigator.clipboard) {
       navigator.clipboard
-        .writeText(bankInfo.accountNumber)
+        .writeText(activeAccount.accountNumber)
         .then(() => {
           setCopyOk(true);
           setTimeout(() => setCopyOk(false), 1500);
@@ -77,6 +85,25 @@ export function RechargeForm() {
     );
   }
 
+  if (!activeAccount) {
+    return (
+      <div className="space-y-3">
+        <div className="overflow-hidden rounded-2xl bg-white p-5 text-center shadow-sm ring-1 ring-zinc-200/60 sm:p-6">
+          <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-amber-100 text-amber-600 sm:size-16">
+            <Landmark className="size-7 sm:size-8" strokeWidth={1.8} />
+          </div>
+          <h2 className="mt-3 text-sm font-bold text-zinc-900 sm:text-base">
+            Rekening Tujuan Belum Tersedia
+          </h2>
+          <p className="mt-1 text-xs text-zinc-600 sm:text-sm">
+            Saat ini belum ada rekening tujuan deposit yang aktif. Silakan
+            hubungi admin untuk informasi rekening terbaru.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-200/60">
@@ -86,13 +113,13 @@ export function RechargeForm() {
           </div>
           <div className="min-w-0 flex-1 text-center sm:text-left">
             <p className="text-[10px] font-bold tracking-wider text-emerald-600 sm:text-xs">
-              {bankInfo.bank}
+              {activeAccount.bankName}
             </p>
             <p className="mt-1 text-lg font-bold tracking-wide text-zinc-900 sm:text-xl">
-              {bankInfo.accountNumber}
+              {activeAccount.accountNumber}
             </p>
             <p className="mt-0.5 text-[11px] text-zinc-500 sm:text-xs">
-              a.n {bankInfo.accountName}
+              a.n {activeAccount.accountName}
             </p>
           </div>
           <button
@@ -104,6 +131,30 @@ export function RechargeForm() {
             <Copy className="size-4 sm:size-5" />
           </button>
         </div>
+        {accounts.length > 1 && (
+          <div className="border-t border-zinc-100 px-4 py-2.5 sm:px-5 sm:py-3">
+            <label htmlFor="accountId" className="sr-only">
+              Pilih rekening
+            </label>
+            <select
+              id="accountId"
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
+              className={inputClass}
+            >
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id.toString()}>
+                  {a.bankName} - {a.accountNumber} a.n {a.accountName}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {activeAccount.notes && (
+          <p className="border-t border-zinc-100 bg-amber-50 px-4 py-1.5 text-center text-[11px] font-medium text-amber-800 sm:px-5 sm:text-xs">
+            {activeAccount.notes}
+          </p>
+        )}
         {copyOk && (
           <p className="border-t border-zinc-100 bg-emerald-50 px-4 py-1.5 text-center text-[11px] font-medium text-emerald-700 sm:px-5 sm:text-xs">
             Nomor rekening disalin

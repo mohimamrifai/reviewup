@@ -17,6 +17,7 @@ export type MemberLevel =
 export type Member = {
   id: string;
   username: string;
+  phone: string | null;
   level: MemberLevel;
   creditScore: number;
   balance: string;
@@ -42,7 +43,11 @@ export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
     if (!q) return members;
-    return members.filter((m) => m.username.toLowerCase().includes(q));
+    return members.filter(
+      (m) =>
+        m.username.toLowerCase().includes(q) ||
+        (m.phone?.toLowerCase().includes(q) ?? false),
+    );
   }, [members, query]);
 
   return (
@@ -52,7 +57,7 @@ export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
-            placeholder="Cari username..."
+            placeholder="Cari username / no. HP..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className={`${searchInputClass} pl-8`}
@@ -68,6 +73,7 @@ export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
           <thead className="bg-zinc-100">
             <tr>
               <th className={headerCellClass}>Username</th>
+              <th className={headerCellClass}>No. HP</th>
               <th className={headerCellClass}>Level</th>
               <th className={headerCellClass}>Skor Kredit</th>
               <th className={headerCellClass}>Saldo</th>
@@ -81,7 +87,7 @@ export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
             {filtered.length === 0 ? (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   className="px-3 py-6 text-center text-xs text-zinc-500 sm:text-sm"
                 >
                   {members.length === 0
@@ -95,6 +101,13 @@ export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
                   key={m.id}
                   member={m}
                   onEdit={() => setEditing(m)}
+                  onStatusChange={(newStatus) => {
+                    setMembers((cur) =>
+                      cur.map((row) =>
+                        row.id === m.id ? { ...row, status: newStatus } : row,
+                      ),
+                    );
+                  }}
                 />
               ))
             )}

@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
-import { Loader2, Search, X } from "lucide-react";
+import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Loader2, Plus, Search, X } from "lucide-react";
 
-import { updateTaskStatus, type TaskReviewState } from "@/lib/actions/tasks-admin";
+import { createTask, updateTaskStatus, type TaskReviewState } from "@/lib/actions/tasks-admin";
 
 import { StatusBadge, type Status } from "./status-badge";
 
@@ -18,6 +18,9 @@ type Task = {
   queue: number | null;
   createdAt: string;
 };
+
+type MemberOption = { id: string; username: string; level: string; status: string };
+type ProductOption = { id: number; name: string; isActive: boolean };
 
 const STATUS_OPTIONS: { value: Status | "all"; label: string }[] = [
   { value: "all", label: "Semua Status" },
@@ -244,11 +247,212 @@ function TaskStatusModal({
   );
 }
 
-export function TasksTable({ initialTasks }: { initialTasks: Task[] }) {
+function CreateTaskModal({
+  members,
+  products,
+  onClose,
+  onCreated,
+}: {
+  members: MemberOption[];
+  products: ProductOption[];
+  onClose: () => void;
+  onCreated: (msg: string) => void;
+}) {
+  const [state, action] = useActionState(createTask, initialState);
+  const [pending, startTransition] = useTransition();
+  const skipFirstRun = useRef(true);
+
+  // Skip effect on first run, otherwise auto-fire on mount
+  useEffect(() => {
+    if (skipFirstRun.current) {
+      skipFirstRun.current = false;
+      return;
+    }
+    if (state.success && state.message) {
+      onCreated(state.message);
+    }
+  }, [state, onCreated]);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  const activeProducts = products.filter((p) => p.isActive);
+  const availableMembers = members.filter((m) => m.status !== "banned");
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Tambah Tugas Baru"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-3 sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl sm:p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between sm:mb-5">
+          <h2 className="text-sm font-bold text-zinc-900 sm:text-base">
+            Tambah Tugas Baru
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Tutup"
+            className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        {availableMembers.length === 0 ? (
+          <div className="rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-800 sm:text-xs">
+            Belum ada anggota yang bisa menerima tugas. Tambahkan anggota dulu di
+            halaman <strong>Anggota</strong>.
+          </div>
+        ) : activeProducts.length === 0 ? (
+          <div className="rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-800 sm:text-xs">
+            Belum ada produk aktif. Tambahkan produk dulu di halaman{" "}
+            <strong>Produk</strong>.
+          </div>
+        ) : (
+          <form
+            action={(fd) => startTransition(() => action(fd))}
+            className="space-y-3"
+          >
+            <div>
+              <label
+                htmlFor="memberId"
+                className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs"
+              >
+                Anggota
+              </label>
+              <select
+                id="memberId"
+                name="memberId"
+                required
+                defaultValue=""
+                disabled={pending}
+                className={inputClass}
+              >
+                <option value="" disabled>
+                  Pilih anggota...
+                </option>
+                {availableMembers.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    @{m.username} — Level {m.level}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label
+                htmlFor="productId"
+                className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs"
+              >
+                Produk
+              </label>
+              <select
+                id="productId"
+                name="productId"
+                required
+                defaultValue=""
+                disabled={pending}
+                className={inputClass}
+              >
+                <option value="" disabled>
+                  Pilih produk...
+                </option>
+                {activeProducts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label
+                htmlFor="price"
+                className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs"
+              >
+                Harga (Rp)
+              </label>
+              <input
+                id="price"
+                name="price"
+                type="number"
+                inputMode="numeric"
+                min="1"
+                step="1"
+                required
+                placeholder="cth: 50000"
+                disabled={pending}
+                className={inputClass}
+              />
+              <p className="mt-1 text-[11px] text-zinc-500 sm:text-xs">
+                Komisi dihitung otomatis berdasar level anggota (Classic 20%, Silver
+                30%, Gold 35%, Platinum 40%, Diamond 45%, Premier 50%).
+              </p>
+            </div>
+
+            {state.error && (
+              <p className="rounded-md bg-rose-50 px-3 py-2 text-[11px] text-rose-700 sm:text-xs">
+                {state.error}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={pending}
+                className="rounded-md bg-zinc-100 px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-200 disabled:opacity-50 sm:text-sm"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={pending}
+                className="inline-flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50 sm:text-sm"
+              >
+                {pending && <Loader2 className="size-3 animate-spin" />}
+                Tambah Tugas
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function TasksTable({
+  initialTasks,
+  members = [],
+  products = [],
+}: {
+  initialTasks: Task[];
+  members?: MemberOption[];
+  products?: ProductOption[];
+}) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
   const [editing, setEditing] = useState<Task | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
@@ -326,6 +530,14 @@ export function TasksTable({ initialTasks }: { initialTasks: Task[] }) {
           <span className="text-xs text-zinc-500 sm:ml-auto sm:text-sm">
             {filtered.length} dari {tasks.length} tugas
           </span>
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 sm:text-sm"
+          >
+            <Plus className="size-3.5" />
+            Tambah Tugas
+          </button>
         </div>
       </div>
 
@@ -401,6 +613,34 @@ export function TasksTable({ initialTasks }: { initialTasks: Task[] }) {
           onClose={() => setEditing(null)}
           onUpdated={() => setEditing(null)}
         />
+      )}
+
+      {creating && (
+        <CreateTaskModal
+          members={members}
+          products={products}
+          onClose={() => setCreating(false)}
+          onCreated={(msg) => {
+            setCreating(false);
+            setToast({ type: "success", text: msg });
+            // Refresh page untuk ambil data tugas baru
+            window.location.reload();
+          }}
+        />
+      )}
+
+      {toast && (
+        <div
+          role="status"
+          className={`fixed left-1/2 top-4 z-[60] -translate-x-1/2 rounded-md px-4 py-2 text-xs font-medium shadow-lg sm:text-sm ${
+            toast.type === "success"
+              ? "bg-emerald-600 text-white"
+              : "bg-rose-600 text-white"
+          }`}
+          onClick={() => setToast(null)}
+        >
+          {toast.text}
+        </div>
       )}
     </div>
   );

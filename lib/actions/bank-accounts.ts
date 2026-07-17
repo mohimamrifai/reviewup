@@ -87,6 +87,8 @@ export async function addBankAccount(
 
   revalidatePath("/bank");
   revalidatePath("/withdraw");
+  revalidatePath("/profil");
+  revalidatePath("/admin/account");
   return {};
 }
 
@@ -137,6 +139,8 @@ export async function deleteBankAccount(
 
   revalidatePath("/bank");
   revalidatePath("/withdraw");
+  revalidatePath("/profil");
+  revalidatePath("/admin/account");
   return {};
 }
 
@@ -185,6 +189,8 @@ export async function updateBankAccount(
 
   revalidatePath("/bank");
   revalidatePath("/withdraw");
+  revalidatePath("/profil");
+  revalidatePath("/admin/account");
   return {};
 }
 
@@ -225,5 +231,7 @@ export async function setPrimaryBankAccount(
 
   revalidatePath("/bank");
   revalidatePath("/withdraw");
+  revalidatePath("/profil");
+  revalidatePath("/admin/account");
   return {};
 }

@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   index,
   integer,
+  jsonb,
   numeric,
   pgSchema,
   pgTable,
@@ -42,6 +43,32 @@ export const profiles = pgTable(
     withdrawPasswordHash: text("withdraw_password_hash"),
     referralCode: text("referral_code"),
     referredBy: uuid("referred_by"),
+    /**
+     * Untuk role `admin_staff`: id leader yang menaungi staff ini.
+     * Untuk role `admin_leader` / `super_admin` / `member`: NULL.
+     * Leader melihat aggregate member dari SEMUA staff yang `leader_id` = leader.id.
+     */
+    leaderId: uuid("leader_id"),
+    /**
+     * Persentase komisi (0-100) yang dibagikan ke admin_staff dari profit
+     * deposit/withdrawal anggota referensinya. NULL = tidak diaktifkan.
+     * Hanya berlaku untuk role `admin_staff`.
+     */
+    commissionRate: numeric("commission_rate", { precision: 5, scale: 2 }),
+    /**
+     * Izin akses tambahan per-admin. Super Admin dapat menyetel flag ini untuk
+     * memberikan/mencabut kemampuan tertentu di luar role default.
+     *
+     * Bentuk JSON:
+     * {
+     *   "fullAccess": boolean,        // lihat semua data seperti super admin
+     *   "canCreateStaff": boolean,    // boleh buat admin_staff
+     *   "canCreateLeader": boolean,   // boleh buat admin_leader
+     *   "commissionEdit": boolean,    // boleh edit rate komisi
+     *   "depositBankCrud": boolean    // boleh CRUD rekening deposit
+     * }
+     */
+    accessOverrides: jsonb("access_overrides").notNull().default({}),
     status: userStatus("status").notNull().default("online"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -55,5 +82,6 @@ export const profiles = pgTable(
     uniqueIndex("profiles_referral_code_idx").on(table.referralCode),
     index("profiles_referred_by_idx").on(table.referredBy),
     index("profiles_role_idx").on(table.role),
+    index("profiles_leader_id_idx").on(table.leaderId),
   ],
 );

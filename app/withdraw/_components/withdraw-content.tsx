@@ -1,13 +1,17 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Landmark, ShieldCheck } from "lucide-react";
+import { Landmark, Lock, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
 import {
   submitWithdrawal,
   type WithdrawState,
 } from "@/lib/actions/withdrawals";
+import {
+  formatRupiah,
+  MIN_WITHDRAWAL_AMOUNT,
+} from "@/lib/constants/withdrawal";
 
 const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 sm:text-sm";
@@ -23,11 +27,6 @@ type Bank = {
   accountNumber: string;
   isPrimary: boolean;
 };
-
-function formatRupiah(value: string | number) {
-  const num = typeof value === "string" ? Number(value) : value;
-  return "Rp " + num.toLocaleString("id-ID");
-}
 
 type Props = {
   username: string;
@@ -52,6 +51,9 @@ export function WithdrawContent({
       banks[0]?.id?.toString() ??
       "",
   );
+
+  const balanceNum = Number(balance);
+  const balanceBelowMinimum = balanceNum < MIN_WITHDRAWAL_AMOUNT;
 
   if (state.success) {
     return (
@@ -83,7 +85,7 @@ export function WithdrawContent({
       <div className="space-y-3">
         <div className="rounded-2xl bg-emerald-600 p-4 text-center text-white shadow-sm sm:p-5">
           <p className="text-2xl font-bold tracking-tight sm:text-3xl">
-            {formatRupiah(balance)}
+            {formatRupiah(Number(balance))}
           </p>
           <p className="mt-1 text-xs text-white/85 sm:text-sm">Saldo Akun</p>
         </div>
@@ -110,12 +112,12 @@ export function WithdrawContent({
     <div className="space-y-3">
       <div className="rounded-2xl bg-emerald-600 p-4 text-center text-white shadow-sm sm:p-5">
         <p className="text-2xl font-bold tracking-tight sm:text-3xl">
-          {formatRupiah(balance)}
+          {formatRupiah(Number(balance))}
         </p>
         <p className="mt-1 text-xs text-white/85 sm:text-sm">Saldo Akun</p>
         {Number(frozenBalance) > 0 && (
           <p className="mt-1 text-[11px] text-white/75 sm:text-xs">
-            (Dicairkan: {formatRupiah(frozenBalance)})
+            (Dicairkan: {formatRupiah(Number(frozenBalance))})
           </p>
         )}
       </div>
@@ -152,87 +154,105 @@ export function WithdrawContent({
         </div>
 
         <div className="space-y-3 p-4 sm:space-y-4 sm:p-5">
-          <div>
-            <label className={`mb-1 block ${labelClass}`}>
-              Rekening Tujuan
-            </label>
-            <select
-              name="bankAccountId"
-              value={bankId}
-              onChange={(e) => setBankId(e.target.value)}
-              className={inputClass}
-            >
-              {banks.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.bankName} - {b.accountNumber} (a.n {b.accountName})
-                  {b.isPrimary ? " • Utama" : ""}
-                </option>
-              ))}
-            </select>
-            {state.fieldErrors?.bankAccountId?.[0] && (
-              <p className="mt-1 text-xs text-rose-600">
-                {state.fieldErrors.bankAccountId[0]}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className={`mb-1 block ${labelClass}`}>
-              Jumlah Penarikan
-            </label>
-            <input
-              name="amount"
-              type="text"
-              inputMode="numeric"
-              value={amount}
-              onChange={(e) =>
-                setAmount(e.target.value.replace(/[^\d]/g, ""))
-              }
-              placeholder="cth: 150000"
-              className={inputClass}
-            />
-            {state.fieldErrors?.amount?.[0] && (
-              <p className="mt-1 text-xs text-rose-600">
-                {state.fieldErrors.amount[0]}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="withdraw-password"
-              className={`mb-1 block ${labelClass}`}
-            >
-              Kata Sandi Penarikan
-            </label>
-            <input
-              id="withdraw-password"
-              name="withdrawPassword"
-              type="password"
-              placeholder="Kata sandi penarikan"
-              className={inputClass}
-            />
-            {state.fieldErrors?.withdrawPassword?.[0] && (
-              <p className="mt-1 text-xs text-rose-600">
-                {state.fieldErrors.withdrawPassword[0]}
-              </p>
-            )}
-          </div>
-
-          {state.error && (
-            <p className="rounded-md bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600 sm:text-sm">
-              {state.error}
-            </p>
+          {balanceBelowMinimum && (
+            <div className="flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-800 ring-1 ring-amber-200/60 sm:text-xs">
+              <Lock className="mt-0.5 size-3.5 shrink-0" />
+              <div>
+                <p className="font-semibold">
+                  Saldo belum memenuhi minimal penarikan.
+                </p>
+                <p className="mt-0.5 text-amber-700/90">
+                  Minimal penarikan {formatRupiah(MIN_WITHDRAWAL_AMOUNT)}. Saldo
+                  Anda saat ini {formatRupiah(balanceNum)}. Selesaikan lebih
+                  banyak tugas untuk menaikkan saldo.
+                </p>
+              </div>
+            </div>
           )}
 
-          <button
-            type="submit"
-            disabled={isPending}
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-60 sm:py-3 sm:text-sm"
-          >
-            <ShieldCheck className="size-4" />
-            {isPending ? "Mengirim..." : "Kirimkan"}
-          </button>
+          <fieldset disabled={balanceBelowMinimum || isPending} className="space-y-3 sm:space-y-4">
+            <div>
+              <label className={`mb-1 block ${labelClass}`}>
+                Rekening Tujuan
+              </label>
+              <select
+                name="bankAccountId"
+                value={bankId}
+                onChange={(e) => setBankId(e.target.value)}
+                className={inputClass}
+              >
+                {banks.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.bankName} - {b.accountNumber} (a.n {b.accountName})
+                    {b.isPrimary ? " • Utama" : ""}
+                  </option>
+                ))}
+              </select>
+              {state.fieldErrors?.bankAccountId?.[0] && (
+                <p className="mt-1 text-xs text-rose-600">
+                  {state.fieldErrors.bankAccountId[0]}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className={`mb-1 block ${labelClass}`}>
+                Jumlah Penarikan
+              </label>
+              <input
+                name="amount"
+                type="text"
+                inputMode="numeric"
+                value={amount}
+                onChange={(e) =>
+                  setAmount(e.target.value.replace(/[^\d]/g, ""))
+                }
+                placeholder="cth: 150000"
+                className={inputClass}
+              />
+              {state.fieldErrors?.amount?.[0] && (
+                <p className="mt-1 text-xs text-rose-600">
+                  {state.fieldErrors.amount[0]}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label
+                htmlFor="withdraw-password"
+                className={`mb-1 block ${labelClass}`}
+              >
+                Kata Sandi Penarikan
+              </label>
+              <input
+                id="withdraw-password"
+                name="withdrawPassword"
+                type="password"
+                placeholder="Kata sandi penarikan"
+                className={inputClass}
+              />
+              {state.fieldErrors?.withdrawPassword?.[0] && (
+                <p className="mt-1 text-xs text-rose-600">
+                  {state.fieldErrors.withdrawPassword[0]}
+                </p>
+              )}
+            </div>
+
+            {state.error && (
+              <p className="rounded-md bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600 sm:text-sm">
+                {state.error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={isPending || balanceBelowMinimum}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 active:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:py-3 sm:text-sm"
+            >
+              <ShieldCheck className="size-4" />
+              {isPending ? "Mengirim..." : "Kirimkan"}
+            </button>
+          </fieldset>
         </div>
       </form>
 
@@ -244,6 +264,10 @@ export function WithdrawContent({
           <li>
             Masukkan nominal penarikan dalam angka, tanpa menggunakan tanda
             titik, koma, atau simbol lainnya. Contoh: 150000.
+          </li>
+          <li>
+            <strong>Minimal penarikan {formatRupiah(MIN_WITHDRAWAL_AMOUNT)}.</strong>{" "}
+            Jika saldo belum memenuhi, form penarikan akan otomatis terkunci.
           </li>
           <li>
             Gunakan kata sandi penarikan khusus yang telah Anda buat, bukan

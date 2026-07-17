@@ -1,6 +1,9 @@
 "use client";
 
-import { Pencil, Star } from "lucide-react";
+import { useActionState, useEffect, useState, useTransition } from "react";
+import { Loader2, Lock, Pencil, Star, Unlock } from "lucide-react";
+
+import { setMemberStatus, type MemberToolState } from "@/lib/actions/member-tools";
 
 import type { Member, MemberLevel } from "./members-table";
 
@@ -59,14 +62,47 @@ const aksiCellClass =
 export function MemberRow({
   member,
   onEdit,
+  onStatusChange,
 }: {
   member: Member;
   onEdit: () => void;
+  onStatusChange: (newStatus: string) => void;
 }) {
+  const [state, action] = useActionState<MemberToolState, FormData>(setMemberStatus, {});
+  const [pending, startTransition] = useTransition();
+  const isBanned = member.status === "banned";
+
+  // Tutup lock-toggle otomatis setelah sukses (next click aman)
+  useEffect(() => {
+    if (state.success) {
+      onStatusChange(state.message?.includes("Diblokir") ? "banned" : "online");
+    }
+  }, [state, onStatusChange]);
+
+  function toggleLock() {
+    const fd = new FormData();
+    fd.set("memberId", member.id);
+    fd.set("status", isBanned ? "online" : "banned");
+    startTransition(() => action(fd));
+  }
   return (
     <tr className="group border-t border-zinc-200 transition hover:bg-zinc-50/60">
       <td className={`${cellClass} font-medium text-zinc-900`}>
         {member.username}
+      </td>
+      <td className={`${cellClass} font-mono tabular-nums`}>
+        {member.phone ? (
+          <a
+            href={`https://wa.me/${member.phone.replace(/\D/g, "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-emerald-700 underline-offset-2 hover:underline"
+          >
+            {member.phone}
+          </a>
+        ) : (
+          <span className="text-zinc-400">—</span>
+        )}
       </td>
       <td className={cellClass}>
         <span
@@ -99,16 +135,38 @@ export function MemberRow({
       <td className={`${cellClass} whitespace-nowrap`}>
         {formatDate(member.createdAt)}
       </td>
-      <td className={aksiCellClass}>
-        <button
-          type="button"
-          aria-label={`Edit ${member.username}`}
-          onClick={onEdit}
-          className="inline-flex items-center justify-center gap-1 rounded-md bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-700 transition hover:bg-sky-200"
-        >
-          <Pencil className="size-3" />
-          Tools
-        </button>
+      <td className={`${aksiCellClass} whitespace-nowrap`}>
+        <div className="flex items-center justify-end gap-1.5">
+          <button
+            type="button"
+            aria-label={isBanned ? `Buka blokir ${member.username}` : `Blokir ${member.username}`}
+            onClick={toggleLock}
+            disabled={pending}
+            className={`inline-flex items-center justify-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${
+              isBanned
+                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                : "bg-rose-100 text-rose-700 hover:bg-rose-200"
+            }`}
+          >
+            {pending ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : isBanned ? (
+              <Unlock className="size-3" />
+            ) : (
+              <Lock className="size-3" />
+            )}
+            {isBanned ? "Buka" : "Blokir"}
+          </button>
+          <button
+            type="button"
+            aria-label={`Edit ${member.username}`}
+            onClick={onEdit}
+            className="inline-flex items-center justify-center gap-1 rounded-md bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-700 transition hover:bg-sky-200"
+          >
+            <Pencil className="size-3" />
+            Tools
+          </button>
+        </div>
       </td>
     </tr>
   );

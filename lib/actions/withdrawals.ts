@@ -4,6 +4,10 @@ import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import {
+  MAX_WITHDRAWAL_AMOUNT,
+  MIN_WITHDRAWAL_AMOUNT,
+} from "@/lib/constants/withdrawal";
 import { db } from "@/lib/db";
 import { bankAccounts, profiles, withdrawals } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
@@ -15,8 +19,14 @@ const withdrawSchema = z.object({
     .positive("Rekening tidak valid."),
   amount: z
     .number({ message: "Nominal wajib diisi." })
-    .min(30000, "Minimal penarikan Rp 30.000.")
-    .max(100_000_000, "Maksimal penarikan Rp 100.000.000."),
+    .min(
+      MIN_WITHDRAWAL_AMOUNT,
+      `Minimal penarikan Rp ${MIN_WITHDRAWAL_AMOUNT.toLocaleString("id-ID")}.`,
+    )
+    .max(
+      MAX_WITHDRAWAL_AMOUNT,
+      `Maksimal penarikan Rp ${MAX_WITHDRAWAL_AMOUNT.toLocaleString("id-ID")}.`,
+    ),
   withdrawPassword: z
     .string()
     .min(6, "Kata sandi penarikan minimal 6 karakter."),
@@ -56,6 +66,16 @@ export async function submitWithdrawal(
 
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  // Cek status akun: banned member tidak boleh withdraw
+  const [me] = await db
+    .select({ status: profiles.status })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
+  if (me?.status === "banned") {
+    return { error: "Akun Anda diblokir. Hubungi staff terkait untuk konfirmasi." };
   }
 
   // Verifikasi sandi penarikan via DB (bcrypt crypt)

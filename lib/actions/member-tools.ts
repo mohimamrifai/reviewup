@@ -4,6 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { assertCanAccessMember, getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { auditLogs, profiles } from "@/lib/db/schema";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -37,7 +38,28 @@ async function requireAdmin(): Promise<string> {
 function handleAuthError(e: unknown): MemberToolState {
   const msg = (e as Error).message;
   if (msg === "FORBIDDEN") return { error: "Anda tidak memiliki akses admin." };
+  if (msg === "FORBIDDEN_SCOPE")
+    return { error: "Member ini bukan bagian dari tim Anda." };
   return { error: "Sesi habis, silakan login ulang." };
+}
+
+/**
+ * Validasi bahwa admin boleh mengakses target member (sesuai scope).
+ * Throw `FORBIDDEN_SCOPE` jika di luar scope, `UNAUTHENTICATED` jika tidak login.
+ */
+async function assertScopeForMember(memberId: string): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("UNAUTHENTICATED");
+  const scope = await getScope(user.id);
+  if (!scope) throw new Error("FORBIDDEN");
+  try {
+    assertCanAccessMember(scope, memberId);
+  } catch {
+    throw new Error("FORBIDDEN_SCOPE");
+  }
 }
 
 async function loadMember(memberId: string) {
@@ -79,6 +101,12 @@ export async function updateMemberLevel(
   });
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  try {
+    await assertScopeForMember(parsed.data.memberId);
+  } catch (e) {
+    return handleAuthError(e);
   }
 
   const member = await loadMember(parsed.data.memberId);
@@ -136,6 +164,12 @@ export async function updateMemberCreditScore(
     return { fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
+  try {
+    await assertScopeForMember(parsed.data.memberId);
+  } catch (e) {
+    return handleAuthError(e);
+  }
+
   const updated = await db
     .update(profiles)
     .set({ creditScore: parsed.data.creditScore, updatedAt: new Date() })
@@ -183,6 +217,12 @@ export async function adjustMemberBalance(
   });
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  try {
+    await assertScopeForMember(parsed.data.memberId);
+  } catch (e) {
+    return handleAuthError(e);
   }
 
   const amountStr = parsed.data.amount.toFixed(2);
@@ -244,6 +284,12 @@ export async function resetMemberLoginPassword(
     return { fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
+  try {
+    await assertScopeForMember(parsed.data.memberId);
+  } catch (e) {
+    return handleAuthError(e);
+  }
+
   const adminClient = createAdminClient();
   const { error } = await adminClient.auth.admin.updateUserById(
     parsed.data.memberId,
@@ -290,6 +336,12 @@ export async function resetMemberWithdrawPassword(
   });
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  try {
+    await assertScopeForMember(parsed.data.memberId);
+  } catch (e) {
+    return handleAuthError(e);
   }
 
   // Hash via PostgreSQL crypt() (bcrypt) supaya sama dengan sign-up trigger
@@ -340,6 +392,12 @@ export async function setMemberStatus(
   });
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  try {
+    await assertScopeForMember(parsed.data.memberId);
+  } catch (e) {
+    return handleAuthError(e);
   }
 
   const updated = await db

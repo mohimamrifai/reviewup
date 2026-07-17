@@ -1,13 +1,32 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
+import { redirect } from "next/navigation";
 
+import { getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { deposits, profiles } from "@/lib/db/schema";
+import { createClient } from "@/lib/supabase/server";
 
 import { AdminNav } from "../dashboard/_components/admin-nav";
 import { RechargesTable } from "./_components/recharges-table";
 
 export default async function AdminRechargeListPage() {
-  const rows = await db
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/admin/login");
+
+  const scope = await getScope(user.id);
+  const memberIds = scope?.memberIds ?? null;
+  const unrestricted = scope?.unrestricted ?? false;
+
+  const whereClause = unrestricted
+    ? undefined
+    : memberIds && memberIds.length > 0
+      ? inArray(deposits.memberId, memberIds)
+      : eq(deposits.memberId, "__no_access__");
+
+  const baseQuery = db
     .select({
       id: deposits.id,
       amount: deposits.amount,
@@ -18,8 +37,11 @@ export default async function AdminRechargeListPage() {
       memberUsername: profiles.username,
     })
     .from(deposits)
-    .leftJoin(profiles, eq(deposits.memberId, profiles.id))
-    .orderBy(desc(deposits.createdAt));
+    .leftJoin(profiles, eq(deposits.memberId, profiles.id));
+
+  const rows = whereClause
+    ? await baseQuery.where(whereClause).orderBy(desc(deposits.createdAt))
+    : await baseQuery.orderBy(desc(deposits.createdAt));
 
   return (
     <div className="min-h-screen bg-zinc-100 text-zinc-900">

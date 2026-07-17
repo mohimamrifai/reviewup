@@ -4,6 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { assertCanAccessMember, getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { deposits, profiles } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
@@ -40,6 +41,29 @@ async function requireAdmin() {
   return user.id;
 }
 
+function handleAuthError(e: unknown): DepositReviewState {
+  const msg = (e as Error).message;
+  if (msg === "FORBIDDEN") return { error: "Anda tidak memiliki akses admin." };
+  if (msg === "FORBIDDEN_SCOPE")
+    return { error: "Deposit ini bukan dari anggota tim Anda." };
+  return { error: "Sesi habis, silakan login ulang." };
+}
+
+async function assertScopeForMember(memberId: string): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("UNAUTHENTICATED");
+  const scope = await getScope(user.id);
+  if (!scope) throw new Error("FORBIDDEN");
+  try {
+    assertCanAccessMember(scope, memberId);
+  } catch {
+    throw new Error("FORBIDDEN_SCOPE");
+  }
+}
+
 export async function reviewDeposit(
   _prev: DepositReviewState,
   formData: FormData,
@@ -48,13 +72,7 @@ export async function reviewDeposit(
   try {
     adminId = await requireAdmin();
   } catch (e) {
-    const msg = (e as Error).message;
-    return {
-      error:
-        msg === "FORBIDDEN"
-          ? "Anda tidak memiliki akses admin."
-          : "Sesi habis, silakan login ulang.",
-    };
+    return handleAuthError(e);
   }
 
   const parsed = actionSchema.safeParse({
@@ -64,6 +82,21 @@ export async function reviewDeposit(
   });
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  // Ambil member_id dari deposit, lalu validasi scope
+  const [depositRow] = await db
+    .select({ memberId: deposits.memberId })
+    .from(deposits)
+    .where(eq(deposits.id, parsed.data.id))
+    .limit(1);
+  if (!depositRow) {
+    return { error: "Deposit tidak ditemukan." };
+  }
+  try {
+    await assertScopeForMember(depositRow.memberId);
+  } catch (e) {
+    return handleAuthError(e);
   }
 
   if (parsed.data.action === "approve") {

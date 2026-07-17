@@ -7,3 +7,5 @@ export * from "./withdrawals";
 export * from "./bank-accounts";
 export * from "./channels";
 export * from "./audit-logs";
+export * from "./deposit-bank-accounts";
+export * from "./commission-settings";

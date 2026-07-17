@@ -1,12 +1,13 @@
 "use server";
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { assertCanAccessMember, getScope } from "@/lib/access";
 import { db } from "@/lib/db";
-import { type Level } from "@/lib/levels";
-import { auditLogs, profiles, tasks } from "@/lib/db/schema";
+import { type Level, getCommissionRate } from "@/lib/levels";
+import { auditLogs, products, profiles, tasks } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
 
 const statusSchema = z.object({
@@ -46,7 +47,24 @@ async function requireAdmin(): Promise<string> {
 function handleAuthError(e: unknown): TaskReviewState {
   const msg = (e as Error).message;
   if (msg === "FORBIDDEN") return { error: "Anda tidak memiliki akses admin." };
+  if (msg === "FORBIDDEN_SCOPE")
+    return { error: "Anggota ini bukan bagian dari tim Anda." };
   return { error: "Sesi habis, silakan login ulang." };
+}
+
+async function assertScopeForMember(memberId: string): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("UNAUTHENTICATED");
+  const scope = await getScope(user.id);
+  if (!scope) throw new Error("FORBIDDEN");
+  try {
+    assertCanAccessMember(scope, memberId);
+  } catch {
+    throw new Error("FORBIDDEN_SCOPE");
+  }
 }
 
 export async function updateTaskStatus(
@@ -94,6 +112,13 @@ export async function updateTaskStatus(
   }
 
   const row = updated[0];
+
+  // Validasi scope: admin hanya boleh update tugas member di timnya
+  try {
+    await assertScopeForMember(row.member_id);
+  } catch (e) {
+    return handleAuthError(e);
+  }
   const wasAlreadySelesai = row.prev_status === "selesai";
   const justCompleted = newStatus === "selesai" && !wasAlreadySelesai;
 
@@ -205,5 +230,118 @@ export async function updateTaskStatus(
   return {
     success: true,
     message: `Tugas selesai. Komisi Rp ${Number(r.final_commission).toLocaleString("id-ID")} dikredit. Level: ${r.level} (${r.completed_count} tugas).`,
+  };
+}
+
+// ===== Create task (admin assigns task to a member) =====
+
+const createTaskSchema = z.object({
+  memberId: z.string().uuid("ID anggota tidak valid."),
+  productId: z.coerce
+    .number({ message: "Pilih produk." })
+    .int()
+    .positive("Produk tidak valid."),
+  price: z.coerce
+    .number({ message: "Harga wajib diisi." })
+    .positive("Harga harus lebih dari 0.")
+    .max(100_000_000, "Harga maksimal Rp 100.000.000."),
+});
+
+export async function createTask(
+  _prev: TaskReviewState,
+  formData: FormData,
+): Promise<TaskReviewState> {
+  let adminId: string;
+  try {
+    adminId = await requireAdmin();
+  } catch (e) {
+    return handleAuthError(e);
+  }
+
+  const parsed = createTaskSchema.safeParse({
+    memberId: formData.get("memberId"),
+    productId: formData.get("productId"),
+    price: formData.get("price"),
+  });
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  // Validasi scope: admin hanya boleh kasih tugas ke member di timnya
+  try {
+    await assertScopeForMember(parsed.data.memberId);
+  } catch (e) {
+    return handleAuthError(e);
+  }
+
+  // Validasi member: harus role 'member' dan tidak 'banned'
+  const [member] = await db
+    .select({
+      id: profiles.id,
+      role: profiles.role,
+      level: profiles.level,
+      status: profiles.status,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, parsed.data.memberId))
+    .limit(1);
+  if (!member) return { error: "Anggota tidak ditemukan." };
+  if (member.role !== "member") {
+    return { error: "Tugas hanya bisa diberikan ke anggota (member)." };
+  }
+  if (member.status === "banned") {
+    return { error: "Anggota ini sedang diblokir. Buka blokir terlebih dahulu." };
+  }
+
+  // Validasi produk: harus aktif
+  const [product] = await db
+    .select({ id: products.id, isActive: products.isActive })
+    .from(products)
+    .where(eq(products.id, parsed.data.productId))
+    .limit(1);
+  if (!product) return { error: "Produk tidak ditemukan." };
+  if (!product.isActive) {
+    return { error: "Produk ini tidak aktif, tidak bisa diberikan." };
+  }
+
+  // Hitung komisi berdasar level member saat ini (rate % dari price)
+  const ratePercent = await getCommissionRate(member.level as Level);
+  const commission = (parsed.data.price * ratePercent) / 100;
+  const priceStr = parsed.data.price.toFixed(2);
+  const commissionStr = commission.toFixed(2);
+
+  const [created] = await db
+    .insert(tasks)
+    .values({
+      memberId: parsed.data.memberId,
+      productId: parsed.data.productId,
+      price: priceStr,
+      commission: commissionStr,
+      status: "menunggu",
+    })
+    .returning({ id: tasks.id });
+
+  if (!created) return { error: "Gagal membuat tugas." };
+
+  await db.insert(auditLogs).values({
+    actorId: adminId,
+    targetId: parsed.data.memberId,
+    action: "create_task",
+    amount: priceStr,
+    note: `Tugas #${created.id} diberikan (komisi Rp ${Number(commissionStr).toLocaleString("id-ID")} @${ratePercent}%).`,
+    metadata: JSON.stringify({
+      taskId: created.id,
+      productId: parsed.data.productId,
+      price: parsed.data.price,
+      commission: commission,
+      level: member.level,
+    }),
+  });
+
+  revalidatePath("/admin/task");
+  revalidatePath("/order");
+  return {
+    success: true,
+    message: `Tugas #${created.id} berhasil diberikan.`,
   };
 }
