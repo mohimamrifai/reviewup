@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
-  Building2,
   ChevronDown,
   ClipboardList,
   CreditCard,
@@ -13,7 +13,6 @@ import {
   KeyRound,
   Landmark,
   LayoutDashboard,
-  LogOut,
   Menu,
   Package,
   Percent,
@@ -67,7 +66,7 @@ const sections: Section[] = [
         label: "Tujuan Deposit",
         href: "/admin/deposit-bank",
         icon: Landmark,
-        leaderOrSuperOnly: true,
+        superAdminOnly: true,
       },
     ],
   },
@@ -117,16 +116,15 @@ const sections: Section[] = [
 ];
 
 type Props = {
-  active: string;
   isSuperAdmin?: boolean;
   isLeader?: boolean;
 };
 
 export function AdminNav({
-  active,
   isSuperAdmin = false,
   isLeader = false,
 }: Props) {
+  const pathname = usePathname() ?? "";
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -144,26 +142,48 @@ export function AdminNav({
       .filter((s) => s.items.length > 0);
   }, [isSuperAdmin, isLeader]);
 
+  // Tentukan href yang sedang aktif (match persis atau prefix nested).
+  // Digunakan untuk highlight link & buka otomatis section berisi halaman aktif.
+  const activeHref = useMemo(() => {
+    const allHrefs = sections.flatMap((s) => s.items.map((i) => i.href));
+    if (allHrefs.includes(pathname)) return pathname;
+    const sorted = [...new Set(allHrefs)].sort((a, b) => b.length - a.length);
+    for (const href of sorted) {
+      if (pathname.startsWith(href + "/")) return href;
+    }
+    return "";
+  }, [pathname]);
+
+  // Label item yang sedang aktif (untuk header mobile).
+  const activeLabel = useMemo(() => {
+    if (!activeHref) return "Admin";
+    const found = sections
+      .flatMap((s) => s.items)
+      .find((i) => i.href === activeHref);
+    return found?.label ?? "Admin";
+  }, [activeHref]);
+
   // Buka otomatis section yang berisi halaman aktif
   useEffect(() => {
+    if (!activeHref) return;
     setCollapsed((cur) => {
       const next = { ...cur };
       for (const s of visibleSections) {
-        if (s.items.some((i) => i.label === active)) {
+        if (s.items.some((i) => i.href === activeHref)) {
           next[s.title] = false;
         }
       }
       return next;
     });
-    // Hanya saat `active` berubah
+    // Hanya saat `activeHref` berubah
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  }, [activeHref]);
 
   // Tutup drawer mobile saat route berubah (otomatis via re-render)
   useEffect(() => {
     if (open) setOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  }, [activeHref]);
 
   // Tutup drawer saat klik di luar (mobile)
   useEffect(() => {
@@ -196,9 +216,7 @@ export function AdminNav({
           {open ? <X className="size-5" /> : <Menu className="size-5" />}
         </button>
         <span className="text-sm font-semibold text-white">
-          {visibleSections
-            .flatMap((s) => s.items)
-            .find((i) => i.label === active)?.label ?? "Admin"}
+          {activeLabel}
         </span>
         <AdminLogoutButton variant="icon" />
       </header>
@@ -213,7 +231,7 @@ export function AdminNav({
       >
         <SidebarContent
           visibleSections={visibleSections}
-          active={active}
+          activeHref={activeHref}
           collapsed={collapsed}
           toggleSection={toggleSection}
         />
@@ -233,7 +251,7 @@ export function AdminNav({
       <aside className="fixed left-0 top-0 z-20 hidden h-screen w-60 shrink-0 border-r border-slate-700 bg-slate-800 text-slate-300 sm:block">
         <SidebarContent
           visibleSections={visibleSections}
-          active={active}
+          activeHref={activeHref}
           collapsed={collapsed}
           toggleSection={toggleSection}
         />
@@ -244,12 +262,12 @@ export function AdminNav({
 
 function SidebarContent({
   visibleSections,
-  active,
+  activeHref,
   collapsed,
   toggleSection,
 }: {
   visibleSections: Section[];
-  active: string;
+  activeHref: string;
   collapsed: Record<string, boolean>;
   toggleSection: (title: string) => void;
 }) {
@@ -268,7 +286,7 @@ function SidebarContent({
         {visibleSections.map((section, idx) => {
           const isCollapsed = collapsed[section.title] === true;
           const isActiveInSection = section.items.some(
-            (i) => i.label === active,
+            (i) => i.href === activeHref,
           );
           return (
             <div
@@ -300,7 +318,7 @@ function SidebarContent({
               {!isCollapsed && (
                 <ul className="mt-0.5 space-y-0.5">
                   {section.items.map(({ label, href, icon: Icon }) => {
-                    const isActive = label === active;
+                    const isActive = href === activeHref;
                     return (
                       <li key={label}>
                         <Link
