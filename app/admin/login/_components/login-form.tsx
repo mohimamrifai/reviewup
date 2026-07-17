@@ -1,16 +1,53 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo } from "react";
 
 import { adminSignIn, type AuthState } from "@/lib/actions/auth";
 
 const initialState: AuthState = {};
+
+const DAY_NAMES = [
+  "Minggu",
+  "Senin",
+  "Selasa",
+  "Rabu",
+  "Kamis",
+  "Jumat",
+  "Sabtu",
+] as const;
+
+const MONTH_NAMES = [
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
+] as const;
+
+function formatTanggal(d: Date): string {
+  const day = DAY_NAMES[d.getDay()];
+  const date = d.getDate();
+  const month = MONTH_NAMES[d.getMonth()];
+  const year = d.getFullYear();
+  return `${day}, ${date} ${month} ${year}`;
+}
 
 export function LoginForm() {
   const [state, formAction, isPending] = useActionState(
     adminSignIn,
     initialState,
   );
+
+  // Tanggal dihitung ulang setiap render agar selalu mengikuti hari ini
+  // (otomatis berubah tiap hari tanpa rebuild/deploy).
+  const todayLabel = useMemo(() => formatTanggal(new Date()), []);
 
   return (
     <div className="relative w-full max-w-sm rounded-xl border-2 border-cyan-400/70 bg-zinc-900/80 p-5 shadow-[0_0_30px_rgba(34,211,238,0.35),inset_0_0_30px_rgba(34,211,238,0.08)] backdrop-blur-sm sm:p-7">
@@ -58,10 +95,10 @@ export function LoginForm() {
 
       <div className="mt-5 rounded-lg border border-cyan-400/40 bg-zinc-900/60 p-3.5 sm:mt-6 sm:p-4">
         <h2 className="text-sm font-bold text-cyan-400 underline underline-offset-2 sm:text-base">
-          Selasa - Eksekusi
+          {todayLabel.split(",")[0]} - Eksekusi
         </h2>
         <p className="mt-0.5 text-[11px] text-cyan-100/55 sm:text-xs">
-          Selasa, 14 Juli 2026
+          {todayLabel}
         </p>
         <p className="mt-2 text-[11px] leading-relaxed text-cyan-100/80 sm:text-xs">
           Rencana tanpa tindakan tidak berarti. Hari ini adalah tentang

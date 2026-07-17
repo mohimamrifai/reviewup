@@ -12,6 +12,7 @@ TRUNCATE TABLE
   public.deposits,
   public.withdrawals,
   public.tasks,
+  public.task_requests,
   public.products,
   public.deposit_bank_accounts,
   public.customer_service_channels
