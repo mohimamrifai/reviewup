@@ -1,7 +1,7 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { products, tasks } from "@/lib/db/schema";
+import { products, taskRequests, tasks } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
 
 import { OrdersList } from "./_components/orders-list";
@@ -16,7 +16,7 @@ const STATUS_LABEL: Record<string, { label: string; variant: "blue" | "green" | 
   dibatalkan: { label: "Dibatalkan", variant: "rose" },
 };
 
-const SUBMITTABLE = ["menunggu", "dipilih", "dikerjakan"];
+const ACTIVE_TASK_STATUSES = ["dipilih"] as const;
 
 export default async function OrderPage() {
   const supabase = await createClient();
@@ -47,21 +47,33 @@ export default async function OrderPage() {
     })
     .from(tasks)
     .leftJoin(products, eq(tasks.productId, products.id))
-    .where(eq(tasks.memberId, user.id))
+    .where(
+      sql`${tasks.memberId} = ${user.id} AND ${tasks.status} = ANY(${sql.raw(`ARRAY[${ACTIVE_TASK_STATUSES.map((status) => `'${status}'::task_status`).join(",")}]`)})`,
+    )
     .orderBy(desc(tasks.createdAt));
 
-  const orders = rows.map((r) => {
-    const meta = STATUS_LABEL[r.status] ?? { label: r.status, variant: "zinc" as const };
+  const [pendingRequest] = await db
+    .select({ id: taskRequests.id })
+    .from(taskRequests)
+    .where(eq(taskRequests.memberId, user.id))
+    .limit(1);
+
+  const orders = rows.map((row) => {
+    const meta = STATUS_LABEL[row.status] ?? {
+      label: row.status,
+      variant: "zinc" as const,
+    };
+
     return {
-      id: r.id,
-      title: r.productName ?? "(produk dihapus)",
-      imageUrl: r.imageUrl,
-      status: r.status,
+      id: row.id,
+      title: row.productName ?? "(produk dihapus)",
+      imageUrl: row.imageUrl,
+      status: row.status,
       statusLabel: meta.label,
       statusVariant: meta.variant,
-      price: r.price,
-      commission: r.commission,
-      canSubmit: SUBMITTABLE.includes(r.status),
+      price: row.price,
+      commission: row.commission,
+      canSubmit: row.status === "dipilih",
     };
   });
 
@@ -69,8 +81,16 @@ export default async function OrderPage() {
     <div className="min-h-full bg-zinc-50 pb-28">
       <PageHeader title="Tugas Saya" />
 
-      <div className="mx-auto mt-3 max-w-lg space-y-3 px-4 sm:mt-4 sm:space-y-4 sm:px-6">
-        <OrdersList initialOrders={orders} />
+      <div className="mx-auto mt-3 max-w-lg px-4 sm:mt-4 sm:px-6">
+        {orders.length > 0 ? (
+          <OrdersList initialOrders={orders} />
+        ) : (
+          <p className="text-center text-sm text-zinc-600">
+            {pendingRequest
+              ? "Belum ada Tugas"
+              : "Belum ada tugas"}
+          </p>
+        )}
       </div>
 
       <BottomNav />

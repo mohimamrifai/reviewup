@@ -22,7 +22,6 @@ export const tasks = pgTable(
       .notNull()
       .references(() => profiles.id, { onDelete: "cascade" }),
     productId: bigint("product_id", { mode: "number" })
-      .notNull()
       .references(() => products.id, { onDelete: "restrict" }),
     price: numeric("price", { precision: 15, scale: 2 }).notNull(),
     commission: numeric("commission", { precision: 15, scale: 2 }).notNull(),

@@ -1,10 +1,8 @@
 -- ============================================================
 -- ReviewUp - Seed Development (Easy & Idempotent)
 -- ============================================================
--- Aman dijalankan berulang tanpa efek samping.
--- Hanya INSERT ke auth.users; profil + field tambahan
--- (leader_id, referral_code, withdraw_password_hash, dll)
--- diurus trigger `handle_new_user` + UPDATE di bawah.
+-- Versi migration: file ini di-apply via supabase_apply_migration.
+-- Versi portabel ada di supabase/seed.sql.
 --
 -- Daftar akun (samakan dengan tasks.md):
 --   ┌─────────────┬────────────────┬──────────────────────────────────┐
@@ -16,10 +14,6 @@
 --   │ member      │ Reviewup@123   │ Saldo awal Rp30.000              │
 --   │ rinasyah    │ jika123        │ Referral STAFF001, tarik: 123456 │
 --   └─────────────┴────────────────┴──────────────────────────────────┘
---
--- Cara pakai:
---   psql "$DATABASE_URL" -f supabase/seed.sql
---   atau paste isi file ke Supabase SQL Editor.
 -- ============================================================
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -133,10 +127,6 @@ BEGIN
     )
   );
 
-  -- ============================================================
-  -- 3. Pastikan field tambahan (idempotent untuk akun lama)
-  -- ============================================================
-
   -- Admin staff: referral_code = STAFF001, leader_id = adminleader
   UPDATE public.profiles
   SET referral_code = 'STAFF001',
@@ -163,18 +153,16 @@ BEGIN
 END $$;
 
 -- ============================================================
--- 4. Verifikasi
+-- 3. Verifikasi
 -- ============================================================
 SELECT
   username,
   role,
-  level,
   balance,
   status,
   referral_code,
   referred_by,
-  leader_id,
-  CASE WHEN withdraw_password_hash IS NOT NULL THEN 'set' ELSE NULL END AS withdraw_pw
+  leader_id
 FROM public.profiles
 ORDER BY
   CASE role

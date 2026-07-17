@@ -1,9 +1,9 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import { getScope } from "@/lib/access";
 import { db } from "@/lib/db";
-import { products, profiles, tasks } from "@/lib/db/schema";
+import { products, profiles, taskRequests, tasks } from "@/lib/db/schema";
 import { type Level } from "@/lib/levels";
 import { createClient } from "@/lib/supabase/server";
 
@@ -66,16 +66,23 @@ export default async function AdminTaskPage() {
     .from(products)
     .orderBy(products.name);
 
-  // Query tasks dengan filter scope
+  // Query tugas nyata + request pending dengan filter scope
   const taskWhere = unrestricted
     ? undefined
     : memberIds && memberIds.length > 0
       ? inArray(tasks.memberId, memberIds)
       : eq(tasks.memberId, "00000000-0000-0000-0000-000000000000");
 
-  const baseQuery = db
+  const requestWhere = unrestricted
+    ? undefined
+    : memberIds && memberIds.length > 0
+      ? inArray(taskRequests.memberId, memberIds)
+      : eq(taskRequests.memberId, "00000000-0000-0000-0000-000000000000");
+
+  const baseTaskQuery = db
     .select({
       id: tasks.id,
+      kind: sql<"task">`'task'`,
       memberId: tasks.memberId,
       productId: tasks.productId,
       price: tasks.price,
@@ -85,15 +92,44 @@ export default async function AdminTaskPage() {
       createdAt: tasks.createdAt,
       completedAt: tasks.completedAt,
       memberUsername: profiles.username,
+      memberBalance: profiles.balance,
       productName: products.name,
     })
     .from(tasks)
     .leftJoin(profiles, eq(tasks.memberId, profiles.id))
     .leftJoin(products, eq(tasks.productId, products.id));
 
-  const rows = taskWhere
-    ? await baseQuery.where(taskWhere).orderBy(desc(tasks.createdAt))
-    : await baseQuery.orderBy(desc(tasks.createdAt));
+  const baseRequestQuery = db
+    .select({
+      id: taskRequests.id,
+      kind: sql<"request">`'request'`,
+      memberId: taskRequests.memberId,
+      productId: sql<number | null>`NULL`,
+      price: sql<string>`'0'`,
+      commission: sql<string>`'0'`,
+      status: sql<string>`'menunggu'`,
+      queue: sql<number | null>`NULL`,
+      createdAt: taskRequests.createdAt,
+      completedAt: sql<Date | null>`NULL`,
+      memberUsername: profiles.username,
+      memberBalance: profiles.balance,
+      productName: sql<string | null>`NULL`,
+    })
+    .from(taskRequests)
+    .leftJoin(profiles, eq(taskRequests.memberId, profiles.id));
+
+  const [taskRows, requestRows] = await Promise.all([
+    taskWhere
+      ? baseTaskQuery.where(taskWhere).orderBy(desc(tasks.createdAt))
+      : baseTaskQuery.orderBy(desc(tasks.createdAt)),
+    requestWhere
+      ? baseRequestQuery.where(requestWhere).orderBy(desc(taskRequests.requestedAt))
+      : baseRequestQuery.orderBy(desc(taskRequests.requestedAt)),
+  ]);
+
+  const rows = [...requestRows, ...taskRows].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
 
   return (
     <div className="min-h-screen bg-zinc-100 text-zinc-900">
@@ -103,14 +139,17 @@ export default async function AdminTaskPage() {
         <TasksTable
           initialTasks={rows.map((r) => ({
             id: r.id,
+            kind: r.kind,
             memberId: r.memberId,
             memberUsername: r.memberUsername ?? "(user dihapus)",
-            productName: r.productName ?? "(produk dihapus)",
+            memberBalance: String(r.memberBalance ?? "0"),
+            productName: r.productName,
             price: r.price,
             commission: r.commission,
             status: r.status,
             queue: r.queue,
             createdAt: r.createdAt.toISOString(),
+            productId: r.productId,
           }))}
           members={memberRows.map((m) => ({
             id: m.id,

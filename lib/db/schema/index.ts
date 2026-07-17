@@ -1,6 +1,7 @@
 export * from "./enums";
 export * from "./profiles";
 export * from "./products";
+export * from "./task-requests";
 export * from "./tasks";
 export * from "./deposits";
 export * from "./withdrawals";

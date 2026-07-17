@@ -1,7 +1,7 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { products, profiles, tasks } from "@/lib/db/schema";
+import { profiles, tasks } from "@/lib/db/schema";
 import { LEVEL_LABEL, LEVEL_RATE_PERCENT } from "@/lib/levels";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,7 +13,7 @@ import { CommissionTicker } from "./_components/commission-ticker";
 import { StartTaskButton } from "./_components/start-task-button";
 import { BottomNav } from "../_components/bottom-nav";
 
-const ACTIVE_STATUSES = ["menunggu", "dipilih", "dikerjakan"] as const;
+const ACTIVE_STATUSES = ["dipilih", "dikerjakan"] as const;
 
 function formatRupiah(value: string | number) {
   const num = typeof value === "string" ? Number(value) : value;
@@ -51,10 +51,7 @@ export default async function TaskPage() {
     .select({ id: tasks.id })
     .from(tasks)
     .where(
-      and(
-        eq(tasks.memberId, user.id),
-        inArray(tasks.status, [...ACTIVE_STATUSES]),
-      ),
+      sql`${tasks.memberId} = ${user.id} AND ${tasks.status} = ANY(${sql.raw(`ARRAY[${ACTIVE_STATUSES.map((s) => `'${s}'::task_status`).join(",")}]`)})`,
     )
     .limit(1);
   const hasActiveTask = Boolean(activeTaskRow);
@@ -66,15 +63,6 @@ export default async function TaskPage() {
     })
     .from(tasks)
     .where(eq(tasks.memberId, user.id));
-
-  const [activeProduct] = hasActiveTask
-    ? await db
-        .select({ name: products.name, price: products.price })
-        .from(tasks)
-        .leftJoin(products, eq(tasks.productId, products.id))
-        .where(eq(tasks.id, activeTaskRow.id))
-        .limit(1)
-    : [];
 
   const balance = Number(profile?.balance ?? 0);
   const totalCommission = Number(statsRow?.totalCommission ?? 0);
@@ -108,12 +96,6 @@ export default async function TaskPage() {
         />
 
         <StartTaskButton hasActiveTask={hasActiveTask} orderHref="/order" />
-
-        {hasActiveTask && activeProduct?.name ? (
-          <p className="mt-2 text-center text-[11px] text-zinc-500 sm:text-xs">
-            Tugas aktif: {activeProduct.name}
-          </p>
-        ) : null}
 
         <CommissionTicker />
 

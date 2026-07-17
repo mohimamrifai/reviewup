@@ -4,7 +4,10 @@ import { useActionState, useEffect, useState, useTransition } from "react";
 import { Loader2, Star, X } from "lucide-react";
 
 import { useToast } from "@/app/_components/toast";
-import { updateTaskStatus, type TaskReviewState } from "@/lib/actions/tasks-admin";
+import {
+  submitTask,
+  type TaskRequestState,
+} from "@/lib/actions/tasks-member";
 
 type Props = {
   taskId: number;
@@ -14,7 +17,7 @@ type Props = {
   onCompleted: () => void;
 };
 
-const initialState: TaskReviewState = {};
+const initialState: TaskRequestState = {};
 
 export function RatingModal({
   taskId,
@@ -25,7 +28,7 @@ export function RatingModal({
 }: Props) {
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
-  const [state, action] = useActionState(updateTaskStatus, initialState);
+  const [state, action] = useActionState(submitTask, initialState);
   const [pending, startTransition] = useTransition();
   const { show } = useToast();
 
@@ -54,9 +57,8 @@ export function RatingModal({
   function handleSubmit() {
     const fd = new FormData();
     fd.set("taskId", String(taskId));
-    fd.set("status", "selesai");
     if (rating > 0) {
-      fd.set("notes", `Rating: ${rating}/5`);
+      fd.set("rating", String(rating));
     }
     startTransition(() => action(fd));
   }

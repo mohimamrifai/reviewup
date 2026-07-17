@@ -24,19 +24,9 @@ export function OrdersList({ initialOrders }: { initialOrders: Order[] }) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
 
   function handleSubmitted(id: number) {
-    setOrders((cur) =>
-      cur.map((o) =>
-        o.id === id
-          ? {
-              ...o,
-              status: "selesai",
-              statusLabel: "Selesai",
-              statusVariant: "green",
-              canSubmit: false,
-            }
-          : o,
-      ),
-    );
+    // Tugas yang sudah 'dikerjakan' dihilangkan dari daftar.
+    // Status final ke 'selesai' akan ditentukan admin.
+    setOrders((cur) => cur.filter((o) => o.id !== id));
   }
 
   if (orders.length === 0) {
