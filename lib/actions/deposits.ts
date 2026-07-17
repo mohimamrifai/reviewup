@@ -76,17 +76,22 @@ export async function submitDeposit(
     return { error: `Gagal upload bukti: ${uploadError.message}` };
   }
 
-  // Get public URL (bucket private, jadi simpan path saja)
-  // Admin nanti akan resolve via signed URL saat review
-  const { data: urlData } = supabase.storage
+  // Get signed URL (bucket private, jadi URL hanya valid sementara).
+  // Disimpan di DB sebagai "proof path" yang nanti di-resolve jadi signed URL
+  // oleh admin saat review deposit.
+  const { data: signedData, error: signedError } = await supabase.storage
     .from("deposits")
-    .getPublicUrl(path);
+    .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 hari (cukup sampai admin review)
 
-  // Insert deposit row
+  if (signedError || !signedData?.signedUrl) {
+    return { error: `Gagal membuat URL bukti: ${signedError?.message ?? "unknown"}` };
+  }
+
+  // Insert deposit row (simpan signed URL awal + path untuk generate ulang nanti)
   await db.insert(deposits).values({
     memberId: user.id,
     amount: amount.toFixed(2),
-    proofUrl: urlData.publicUrl,
+    proofUrl: signedData.signedUrl,
     status: "pending",
   });
 

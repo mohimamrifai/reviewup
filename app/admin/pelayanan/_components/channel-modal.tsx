@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Save, X } from "lucide-react";
 
 import {
@@ -51,7 +51,6 @@ export function ChannelModal({ initial, onClose, onSaved }: Props) {
     initial ? updateChannel : createChannel,
     initialState,
   );
-  const skipFirstRun = useRef(true);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -67,14 +66,13 @@ export function ChannelModal({ initial, onClose, onSaved }: Props) {
   }, [onClose]);
 
   // Auto-close on success (no fieldErrors & no error & done)
+  // Pakai reference equality `state === initialState` untuk skip initial mount
+  // (aman terhadap React StrictMode yang double-invoke effect di dev).
   useEffect(() => {
-    if (skipFirstRun.current) {
-      skipFirstRun.current = false;
-      return;
-    }
-    if (!isPending && !state.error && !state.fieldErrors && state.saved) {
-      onSaved(state.saved);
-    }
+    if (state === initialState) return;
+    if (isPending) return;
+    if (state.error || state.fieldErrors) return;
+    if (state.saved) onSaved(state.saved);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPending, state]);
 

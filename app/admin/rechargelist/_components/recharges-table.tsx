@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useMemo, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { Check, ExternalLink, Search, X } from "lucide-react";
 
 import { reviewDeposit } from "@/lib/actions/deposits-admin";
@@ -277,24 +278,30 @@ function ReviewModal({
     reviewDeposit,
     initialReview,
   );
+  const [mounted, setMounted] = useState(false);
 
-  // Close on success - parent will receive updated record
-  if (state.success) {
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Tutup otomatis saat submit sukses + panggil callback ke parent
+  useEffect(() => {
+    if (!state.success) return;
     onSuccess({
       ...recharge,
       status: action === "approve" ? "approved" : "rejected",
-      notes:
-        typeof document !== "undefined"
-          ? (document.querySelector<HTMLTextAreaElement>(
-              'textarea[name="notes"]',
-            )?.value ?? recharge.notes)
-          : recharge.notes,
+      // Notes hanya relevan untuk reject; approve tidak punya catatan.
+      notes: action === "reject" ? recharge.notes : null,
     });
-  }
+  }, [state.success, action, recharge, onSuccess]);
 
   const isApprove = action === "approve";
 
-  return (
+  // Render via portal ke body supaya tidak nested di <tr> (hydration error).
+  // SSR aman: render null sampai mount (document.body hanya ada di client).
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -322,22 +329,21 @@ function ReviewModal({
           • {formatRupiah(recharge.amount)}
         </p>
 
-        <label className="mt-3 block">
-          <span className="mb-1 block text-xs font-semibold text-zinc-900 sm:text-sm">
-            Catatan (opsional)
-          </span>
-          <textarea
-            name="notes"
-            rows={3}
-            defaultValue={recharge.notes ?? ""}
-            placeholder={
-              isApprove
-                ? "cth: Bukti transfer valid."
-                : "cth: Bukti tidak terbaca, mohon upload ulang."
-            }
-            className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm"
-          />
-        </label>
+        {/* Catatan hanya untuk reject — approve tidak butuh catatan. */}
+        {!isApprove && (
+          <label className="mt-3 block">
+            <span className="mb-1 block text-xs font-semibold text-zinc-900 sm:text-sm">
+              Alasan Penolakan
+            </span>
+            <textarea
+              name="notes"
+              rows={3}
+              defaultValue={recharge.notes ?? ""}
+              placeholder="cth: Bukti tidak terbaca, mohon upload ulang."
+              className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm"
+            />
+          </label>
+        )}
 
         {state.error && (
           <p className="mt-2 rounded-md bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600 sm:text-sm">
@@ -367,6 +373,7 @@ function ReviewModal({
           </button>
         </div>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }

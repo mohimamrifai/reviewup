@@ -24,7 +24,7 @@ export default async function AdminWithdrawListPage() {
     ? undefined
     : memberIds && memberIds.length > 0
       ? inArray(withdrawals.memberId, memberIds)
-      : eq(withdrawals.memberId, "__no_access__");
+      : eq(withdrawals.memberId, "00000000-0000-0000-0000-000000000000");
 
   const baseQuery = db
     .select({

@@ -71,7 +71,7 @@ export default async function AdminTaskPage() {
     ? undefined
     : memberIds && memberIds.length > 0
       ? inArray(tasks.memberId, memberIds)
-      : eq(tasks.memberId, "__no_access__");
+      : eq(tasks.memberId, "00000000-0000-0000-0000-000000000000");
 
   const baseQuery = db
     .select({

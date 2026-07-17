@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { Loader2, Save } from "lucide-react";
 
 import {
@@ -28,19 +28,15 @@ function EditCell({ row }: { row: Row }) {
   const [state, action] = useActionState(updateCommissionSetting, {});
   const [pending, startTransition] = useTransition();
   const [value, setValue] = useState<string>(row.currentPercent);
-  const skipFirstRun = useRef(true);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
-    if (skipFirstRun.current) {
-      skipFirstRun.current = false;
-      return;
-    }
-    if (state.success && state.message) {
-      setToast(state.message);
-      const t = setTimeout(() => setToast(null), 2500);
-      return () => clearTimeout(t);
-    }
+    // Initial state `{}` tidak punya `success`, otomatis skip.
+    // Aman terhadap React StrictMode (double-invoke effect di dev).
+    if (!state.success || !state.message) return;
+    setToast(state.message);
+    const t = setTimeout(() => setToast(null), 2500);
+    return () => clearTimeout(t);
   }, [state]);
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import { Loader2, Plus, Search, X } from "lucide-react";
 
 import { createTask, updateTaskStatus, type TaskReviewState } from "@/lib/actions/tasks-admin";
@@ -260,14 +260,11 @@ function CreateTaskModal({
 }) {
   const [state, action] = useActionState(createTask, initialState);
   const [pending, startTransition] = useTransition();
-  const skipFirstRun = useRef(true);
 
-  // Skip effect on first run, otherwise auto-fire on mount
+  // Pakai reference equality: `state === initialState` artinya action belum pernah dipanggil.
+  // Aman terhadap React StrictMode (double-invoke effect di dev).
   useEffect(() => {
-    if (skipFirstRun.current) {
-      skipFirstRun.current = false;
-      return;
-    }
+    if (state === initialState) return;
     if (state.success && state.message) {
       onCreated(state.message);
     }

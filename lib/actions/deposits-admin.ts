@@ -107,7 +107,7 @@ export async function reviewDeposit(
       ),
       upd AS (
         UPDATE deposits
-        SET status = 'approved', reviewer_id = ${adminId}, notes = ${parsed.data.notes ?? null}, updated_at = now()
+        SET status = 'approved', approved_by = ${adminId}, notes = ${parsed.data.notes ?? null}, updated_at = now(), approved_at = now()
         FROM d
         WHERE deposits.id = d.id AND d.status = 'pending'
         RETURNING deposits.member_id, deposits.amount

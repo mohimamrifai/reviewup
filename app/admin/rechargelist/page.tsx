@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { deposits, profiles } from "@/lib/db/schema";
+import { resolveProofUrl } from "@/lib/supabase/proof-url";
 import { createClient } from "@/lib/supabase/server";
 
 import { AdminNav } from "../dashboard/_components/admin-nav";
@@ -24,7 +25,7 @@ export default async function AdminRechargeListPage() {
     ? undefined
     : memberIds && memberIds.length > 0
       ? inArray(deposits.memberId, memberIds)
-      : eq(deposits.memberId, "__no_access__");
+      : eq(deposits.memberId, "00000000-0000-0000-0000-000000000000");
 
   const baseQuery = db
     .select({
@@ -43,22 +44,25 @@ export default async function AdminRechargeListPage() {
     ? await baseQuery.where(whereClause).orderBy(desc(deposits.createdAt))
     : await baseQuery.orderBy(desc(deposits.createdAt));
 
+  // Resolve setiap proofUrl: URL lama (public) → signed URL baru; URL signed yang masih valid → as-is.
+  const resolvedRecharges = await Promise.all(
+    rows.map(async (r) => ({
+      id: r.id,
+      memberUsername: r.memberUsername ?? "(user dihapus)",
+      amount: r.amount,
+      status: r.status as "pending" | "approved" | "rejected",
+      proofUrl: await resolveProofUrl(r.proofUrl),
+      notes: r.notes,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  );
+
   return (
     <div className="min-h-screen bg-zinc-100 text-zinc-900">
       <AdminNav active="Deposit" />
 
       <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
-        <RechargesTable
-          initialRecharges={rows.map((r) => ({
-            id: r.id,
-            memberUsername: r.memberUsername ?? "(user dihapus)",
-            amount: r.amount,
-            status: r.status as "pending" | "approved" | "rejected",
-            proofUrl: r.proofUrl,
-            notes: r.notes,
-            createdAt: r.createdAt.toISOString(),
-          }))}
-        />
+        <RechargesTable initialRecharges={resolvedRecharges} />
       </div>
     </div>
   );

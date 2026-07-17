@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import { Copy, Eye, EyeOff, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 
 import {
@@ -133,13 +133,11 @@ function EditAdminModal({
 }) {
   const [state, action] = useActionState(updateAdminUser, initialState);
   const [pending, startTransition] = useTransition();
-  const skipFirstRun = useRef(true);
 
+  // Pakai reference equality: `state === initialState` artinya action belum pernah dipanggil.
+  // Aman terhadap React StrictMode (double-invoke effect di dev).
   useEffect(() => {
-    if (skipFirstRun.current) {
-      skipFirstRun.current = false;
-      return;
-    }
+    if (state === initialState) return;
     if (state.success && state.message) onSaved(state.message);
   }, [state, onSaved]);
 
@@ -286,13 +284,9 @@ function DeleteAdminModal({
 }) {
   const [state, action] = useActionState(deleteAdminUser, initialState);
   const [pending, startTransition] = useTransition();
-  const skipFirstRun = useRef(true);
 
   useEffect(() => {
-    if (skipFirstRun.current) {
-      skipFirstRun.current = false;
-      return;
-    }
+    if (state === initialState) return;
     if (state.success && state.message) onDeleted(state.message);
   }, [state, onDeleted]);
 
@@ -399,14 +393,11 @@ function CreateAdminModal({
   const [role, setRole] = useState<"admin_leader" | "admin_staff" | "">(
     canCreateLeader ? "" : "admin_staff",
   );
-  const skipFirstRun = useRef(true);
 
-  // Skip first run, auto-fire hanya setelah action submit
+  // Pakai reference equality: `state === initialState` artinya action belum pernah dipanggil.
+  // Aman terhadap React StrictMode (double-invoke effect di dev).
   useEffect(() => {
-    if (skipFirstRun.current) {
-      skipFirstRun.current = false;
-      return;
-    }
+    if (state === initialState) return;
     if (state.success) {
       onCreated(state);
     }

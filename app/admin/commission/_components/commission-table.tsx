@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { Loader2, Pencil, Percent, Save, X } from "lucide-react";
 
 import { setStaffCommissionRate, type CommissionState } from "@/lib/actions/commission";
@@ -56,16 +56,13 @@ function EditRateModal({
   const [state, action] = useActionState(setStaffCommissionRate, {});
   const [pending, startTransition] = useTransition();
   const [rate, setRate] = useState<string>(row.commissionRate ?? "");
-  const skipFirstRun = useRef(true);
 
   useEffect(() => {
-    if (skipFirstRun.current) {
-      skipFirstRun.current = false;
-      return;
-    }
-    if (state.success && state.message) {
-      onSaved(state.message, rate.trim() === "" ? null : rate.trim());
-    }
+    // Initial state `{}` tidak punya `success`, jadi otomatis skip.
+    // Aman terhadap React StrictMode (double-invoke effect di dev)
+    // karena berbasis nilai `state` bukan ref yang di-mutate.
+    if (!state.success || !state.message) return;
+    onSaved(state.message, rate.trim() === "" ? null : rate.trim());
   }, [state, onSaved, rate]);
 
   useModalLifecycle(onClose);

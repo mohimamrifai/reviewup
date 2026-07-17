@@ -33,7 +33,7 @@ export default async function AdminUsersPage() {
     ? baseWhere
     : memberIds && memberIds.length > 0
       ? inArray(profiles.id, memberIds)
-      : eq(profiles.id, "__no_access__");
+      : eq(profiles.id, "00000000-0000-0000-0000-000000000000");
 
   const rows = await db
     .select({

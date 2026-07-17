@@ -35,5 +35,9 @@ export default async function AdminLayout({ children }: Props) {
     redirect("/admin/login");
   }
 
-  return <div className="min-h-screen bg-black text-white">{children}</div>;
+  return (
+    <div className="min-h-screen bg-zinc-100 text-zinc-900 sm:pl-60">
+      {children}
+    </div>
+  );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { Loader2, Save, X } from "lucide-react";
 
 import {
@@ -61,16 +61,12 @@ function EditPermissionsModal({
   const [state, action] = useActionState(setAccessOverrides, {});
   const [pending, startTransition] = useTransition();
   const [overrides, setOverrides] = useState<AccessOverrides>(admin.overrides);
-  const skipFirstRun = useRef(true);
 
   useEffect(() => {
-    if (skipFirstRun.current) {
-      skipFirstRun.current = false;
-      return;
-    }
-    if (state.success && state.message) {
-      onSaved(state.message, overrides);
-    }
+    // Initial state `{}` tidak punya `success`, otomatis skip.
+    // Aman terhadap React StrictMode (double-invoke effect di dev).
+    if (!state.success || !state.message) return;
+    onSaved(state.message, overrides);
   }, [state, onSaved, overrides]);
 
   useModalLifecycle(onClose);

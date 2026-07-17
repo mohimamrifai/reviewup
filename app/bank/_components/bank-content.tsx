@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { Landmark, MoreVertical, Pencil, Plus, Save, Star, Trash2, X } from "lucide-react";
 
 import {
@@ -36,17 +36,19 @@ export function BankContent({ banks: initialBanks }: { banks: Bank[] }) {
 
   return (
     <div className="space-y-3">
-      <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-200/60">
+      <div className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-200/60">
         {initialBanks.length === 0 ? (
           <div className="px-4 py-3.5 text-xs text-zinc-700 sm:px-5 sm:py-4 sm:text-sm">
             Belum ada informasi penarikan.
           </div>
         ) : (
           <ul className="divide-y divide-zinc-200">
-            {initialBanks.map((b) => (
+            {initialBanks.map((b, idx) => (
               <li
                 key={b.id}
-                className="flex items-center gap-3 px-4 py-3.5 sm:px-5 sm:py-4"
+                className={`flex items-center gap-3 px-4 py-3.5 sm:px-5 sm:py-4 ${
+                  idx === 0 ? "rounded-t-2xl" : ""
+                }${idx === initialBanks.length - 1 ? " rounded-b-2xl" : ""}`}
               >
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 sm:size-11">
                   <Landmark className="size-4 sm:size-5" />
@@ -175,17 +177,16 @@ function BankFormModal({
 }) {
   const action = mode === "create" ? addBankAccount : updateBankAccount;
   const [state, formAction, isPending] = useActionState(action, initialState);
-  const skipFirstRun = useRef(true);
 
+  // Tutup modal HANYA setelah action return nilai baru (bukan initial mount).
+  // Cek via reference equality: `state === initialState` artinya action belum pernah dipanggil.
+  // Aman terhadap React StrictMode (yang double-invoke effect di dev) karena
+  // reference `initialState` stabil di setiap render.
   useEffect(() => {
-    // Skip the first mount so the modal doesn't auto-close before submit.
-    if (skipFirstRun.current) {
-      skipFirstRun.current = false;
-      return;
-    }
-    if (!isPending && !state.error && !state.fieldErrors) {
-      onClose();
-    }
+    if (state === initialState) return;
+    if (isPending) return;
+    if (state.error || state.fieldErrors) return;
+    onClose();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPending, state]);
 

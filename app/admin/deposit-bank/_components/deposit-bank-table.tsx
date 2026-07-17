@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import { Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 
 import {
@@ -60,13 +60,11 @@ function AccountFormModal({
     initialState,
   );
   const [pending, startTransition] = useTransition();
-  const skipFirstRun = useRef(true);
 
+  // Pakai reference equality: `state === initialState` artinya action belum pernah dipanggil.
+  // Aman terhadap React StrictMode (double-invoke effect di dev).
   useEffect(() => {
-    if (skipFirstRun.current) {
-      skipFirstRun.current = false;
-      return;
-    }
+    if (state === initialState) return;
     if (state.success && state.message) onSaved(state.message);
   }, [state, onSaved]);
 
@@ -225,13 +223,9 @@ function DeleteAccountModal({
 }) {
   const [state, action] = useActionState(deleteDepositBankAccount, initialState);
   const [pending, startTransition] = useTransition();
-  const skipFirstRun = useRef(true);
 
   useEffect(() => {
-    if (skipFirstRun.current) {
-      skipFirstRun.current = false;
-      return;
-    }
+    if (state === initialState) return;
     if (state.success && state.message) onDeleted(state.message);
   }, [state, onDeleted]);
 

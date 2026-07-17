@@ -24,7 +24,7 @@ export default async function AdminAccountPage() {
     ? undefined
     : memberIds && memberIds.length > 0
       ? inArray(bankAccounts.userId, memberIds)
-      : eq(bankAccounts.userId, "__no_access__");
+      : eq(bankAccounts.userId, "00000000-0000-0000-0000-000000000000");
 
   const baseQuery = db
     .select({

@@ -1,8 +1,13 @@
+import { eq } from "drizzle-orm";
+
 import { AdminNav } from "./_components/admin-nav";
 import { DashboardDateRange } from "./_components/dashboard-date-range";
 import { PeriodCard } from "./_components/period-card";
 import { StatCard } from "./_components/stat-card";
+import { db } from "@/lib/db";
+import { profiles } from "@/lib/db/schema";
 import { getDashboardStats, parseDateRange } from "@/lib/dashboard";
+import { createClient } from "@/lib/supabase/server";
 
 function formatRupiah(value: number): string {
   return `Rp ${value.toLocaleString("id-ID")}`;
@@ -21,6 +26,20 @@ export default async function AdminDashboardPage({
 }: {
   searchParams: SearchParams;
 }) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  let myRole: "super_admin" | "admin_leader" | "admin_staff" | "member" | null = null;
+  if (user) {
+    const [me] = await db
+      .select({ role: profiles.role })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1);
+    myRole = me?.role ?? null;
+  }
+
   const params = await searchParams;
   const range = parseDateRange(params.from, params.to);
   const stats = await getDashboardStats(range);
@@ -30,7 +49,11 @@ export default async function AdminDashboardPage({
 
   return (
     <div className="min-h-screen bg-zinc-100 text-zinc-900">
-      <AdminNav active="Dashboard" />
+      <AdminNav
+        active="Dashboard"
+        isSuperAdmin={myRole === "super_admin"}
+        isLeader={myRole === "admin_leader"}
+      />
 
       <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
         <DashboardDateRange />

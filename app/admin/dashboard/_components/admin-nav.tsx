@@ -1,26 +1,119 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { LogOut, Menu, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Building2,
+  ChevronDown,
+  ClipboardList,
+  CreditCard,
+  Headphones,
+  KeyRound,
+  Landmark,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Package,
+  Percent,
+  ScrollText,
+  UserCog,
+  Users,
+  Users2,
+  X,
+} from "lucide-react";
 
 import { AdminLogoutButton } from "../../_components/admin-logout-button";
 
-const items = [
-  { label: "Dashboard", href: "/admin/dashboard" },
-  { label: "Tim", href: "/admin/team", superAdminOnly: true },
-  { label: "Semua Staff", href: "/admin/staff", leaderOrSuperOnly: true },
-  { label: "Komisi", href: "/admin/commission", leaderOrSuperOnly: true },
-  { label: "Anggota", href: "/admin/users" },
-  { label: "Tugas", href: "/admin/task" },
-  { label: "Deposit", href: "/admin/rechargelist" },
-  { label: "Penarikan", href: "/admin/withdrawlist" },
-  { label: "Rekening", href: "/admin/account" },
-  { label: "Tujuan Deposit", href: "/admin/deposit-bank", leaderOrSuperOnly: true },
-  { label: "Produk", href: "/admin/product" },
-  { label: "Pelayanan", href: "/admin/pelayanan" },
-  { label: "Izin Akses", href: "/admin/permissions", superAdminOnly: true },
-  { label: "Audit Log", href: "/admin/audit-logs", superAdminOnly: true },
+type Item = {
+  label: string;
+  href: string;
+  icon: typeof LayoutDashboard;
+  superAdminOnly?: boolean;
+  leaderOrSuperOnly?: boolean;
+};
+
+type Section = {
+  title: string;
+  items: Item[];
+};
+
+// Susunan menu dikelompokan untuk mengurangi panjang list dan menambah kejelasan peran.
+const sections: Section[] = [
+  {
+    title: "Ringkasan",
+    items: [
+      { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    title: "Operasional",
+    items: [
+      { label: "Tugas", href: "/admin/task", icon: ClipboardList },
+      { label: "Deposit", href: "/admin/rechargelist", icon: ArrowDownToLine },
+      {
+        label: "Penarikan",
+        href: "/admin/withdrawlist",
+        icon: ArrowUpFromLine,
+      },
+    ],
+  },
+  {
+    title: "Keuangan",
+    items: [
+      { label: "Rekening", href: "/admin/account", icon: CreditCard },
+      {
+        label: "Tujuan Deposit",
+        href: "/admin/deposit-bank",
+        icon: Landmark,
+        leaderOrSuperOnly: true,
+      },
+    ],
+  },
+  {
+    title: "Tim & Komisi",
+    items: [
+      { label: "Tim", href: "/admin/team", icon: Users, superAdminOnly: true },
+      {
+        label: "Semua Staff",
+        href: "/admin/staff",
+        icon: UserCog,
+        leaderOrSuperOnly: true,
+      },
+      {
+        label: "Komisi",
+        href: "/admin/commission",
+        icon: Percent,
+        leaderOrSuperOnly: true,
+      },
+      {
+        label: "Izin Akses",
+        href: "/admin/permissions",
+        icon: KeyRound,
+        superAdminOnly: true,
+      },
+    ],
+  },
+  {
+    title: "Master Data",
+    items: [
+      { label: "Anggota", href: "/admin/users", icon: Users2 },
+      { label: "Produk", href: "/admin/product", icon: Package },
+      { label: "Pelayanan", href: "/admin/pelayanan", icon: Headphones },
+    ],
+  },
+  {
+    title: "Audit",
+    items: [
+      {
+        label: "Audit Log",
+        href: "/admin/audit-logs",
+        icon: ScrollText,
+        superAdminOnly: true,
+      },
+    ],
+  },
 ];
 
 type Props = {
@@ -35,20 +128,49 @@ export function AdminNav({
   isLeader = false,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const activeItem = items.find((i) => i.label === active);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  // Filter item: sembunyikan yang superAdminOnly untuk role lain
-  const visibleItems = items.filter((i) => {
-    if (i.superAdminOnly && !isSuperAdmin) return false;
-    if (i.leaderOrSuperOnly && !isSuperAdmin && !isLeader) return false;
-    return true;
-  });
+  // Hitung section yang visible (semua item di section harus lewat filter akses)
+  const visibleSections = useMemo(() => {
+    return sections
+      .map((s) => ({
+        ...s,
+        items: s.items.filter((i) => {
+          if (i.superAdminOnly && !isSuperAdmin) return false;
+          if (i.leaderOrSuperOnly && !isSuperAdmin && !isLeader) return false;
+          return true;
+        }),
+      }))
+      .filter((s) => s.items.length > 0);
+  }, [isSuperAdmin, isLeader]);
 
+  // Buka otomatis section yang berisi halaman aktif
+  useEffect(() => {
+    setCollapsed((cur) => {
+      const next = { ...cur };
+      for (const s of visibleSections) {
+        if (s.items.some((i) => i.label === active)) {
+          next[s.title] = false;
+        }
+      }
+      return next;
+    });
+    // Hanya saat `active` berubah
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+
+  // Tutup drawer mobile saat route berubah (otomatis via re-render)
+  useEffect(() => {
+    if (open) setOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+
+  // Tutup drawer saat klik di luar (mobile)
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest("nav")) {
+      if (!target.closest("[data-admin-nav-drawer]")) {
         setOpen(false);
       }
     };
@@ -56,78 +178,156 @@ export function AdminNav({
     return () => document.removeEventListener("click", handleClick);
   }, [open]);
 
+  const toggleSection = (title: string) => {
+    setCollapsed((cur) => ({ ...cur, [title]: !cur[title] }));
+  };
+
   return (
-    <nav className="relative bg-slate-800 text-slate-300">
-      <div className="flex items-center justify-between px-3 py-2.5 sm:hidden">
+    <>
+      {/* === Top bar (mobile only) === */}
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-700 bg-slate-800 px-3 py-2.5 text-slate-300 sm:hidden">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-label={open ? "Tutup menu" : "Buka menu"}
           aria-expanded={open}
-          className="rounded-md p-1.5 text-slate-300 transition hover:bg-slate-700 hover:text-white"
+          className="rounded-md p-1.5 transition hover:bg-slate-700 hover:text-white"
         >
           {open ? <X className="size-5" /> : <Menu className="size-5" />}
         </button>
         <span className="text-sm font-semibold text-white">
-          {activeItem?.label ?? "Admin"}
+          {visibleSections
+            .flatMap((s) => s.items)
+            .find((i) => i.label === active)?.label ?? "Admin"}
         </span>
         <AdminLogoutButton variant="icon" />
+      </header>
+
+      {/* === Drawer (mobile) === */}
+      <div
+        data-admin-nav-drawer
+        className={`fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] transform border-r border-slate-700 bg-slate-800 text-slate-300 transition-transform duration-200 sm:hidden ${
+          open ? "translate-x-0" : "-translate-x-full"
+        }`}
+        aria-hidden={!open}
+      >
+        <SidebarContent
+          visibleSections={visibleSections}
+          active={active}
+          collapsed={collapsed}
+          toggleSection={toggleSection}
+        />
       </div>
 
+      {/* Backdrop (mobile) */}
       {open && (
-        <div className="absolute left-0 right-0 top-full z-30 border-t border-slate-700 bg-slate-800 shadow-lg sm:hidden">
-          <ul className="flex max-h-[80vh] flex-col gap-1 overflow-y-auto px-3 py-2">
-            {visibleItems.map(({ label, href }) => {
-              const isActive = label === active;
-              return (
-                <li key={label}>
-                  <Link
-                    href={href}
-                    onClick={() => setOpen(false)}
-                    aria-current={isActive ? "page" : undefined}
-                    className={`block rounded-md px-3 py-2 text-sm font-medium transition ${
-                      isActive
-                        ? "bg-indigo-600 text-white"
-                        : "text-slate-300 hover:bg-slate-700 hover:text-white"
-                    }`}
-                  >
-                    {label}
-                  </Link>
-                </li>
-              );
-            })}
-            <li className="mt-1 border-t border-slate-700 pt-1">
-              <AdminLogoutButton className="block w-full rounded-md px-3 py-2 text-left text-sm font-semibold" />
-            </li>
-          </ul>
-        </div>
+        <button
+          type="button"
+          aria-label="Tutup menu"
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-30 bg-slate-900/50 sm:hidden"
+        />
       )}
 
-      <div className="hidden px-3 py-2.5 sm:block sm:px-4">
-        <ul className="flex items-center justify-center gap-1 sm:gap-2">
-          {visibleItems.map(({ label, href }) => {
-            const isActive = label === active;
-            return (
-              <li key={label}>
-                <Link
-                  href={href}
-                  aria-current={isActive ? "page" : undefined}
-                  className={`inline-block whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition sm:px-4 sm:text-sm ${
-                    isActive
-                      ? "bg-indigo-600 text-white"
-                      : "text-slate-300 hover:bg-slate-700 hover:text-white"
+      {/* === Sidebar (desktop, fixed) === */}
+      <aside className="fixed left-0 top-0 z-20 hidden h-screen w-60 shrink-0 border-r border-slate-700 bg-slate-800 text-slate-300 sm:block">
+        <SidebarContent
+          visibleSections={visibleSections}
+          active={active}
+          collapsed={collapsed}
+          toggleSection={toggleSection}
+        />
+      </aside>
+    </>
+  );
+}
+
+function SidebarContent({
+  visibleSections,
+  active,
+  collapsed,
+  toggleSection,
+}: {
+  visibleSections: Section[];
+  active: string;
+  collapsed: Record<string, boolean>;
+  toggleSection: (title: string) => void;
+}) {
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-2 border-b border-slate-700 px-4 py-3.5">
+        <div className="flex size-7 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm">
+          <LayoutDashboard className="size-3.5" />
+        </div>
+        <span className="text-sm font-bold tracking-tight text-white">
+          ReviewUp
+        </span>
+      </div>
+
+      <nav className="flex-1 overflow-y-auto px-2.5 py-3">
+        {visibleSections.map((section, idx) => {
+          const isCollapsed = collapsed[section.title] === true;
+          const isActiveInSection = section.items.some(
+            (i) => i.label === active,
+          );
+          return (
+            <div
+              key={section.title}
+              className={idx === 0 ? "" : "mt-4"}
+            >
+              {section.items.length > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => toggleSection(section.title)}
+                  aria-expanded={!isCollapsed}
+                  className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition hover:text-white ${
+                    isActiveInSection ? "text-white" : "text-slate-400"
                   }`}
                 >
-                  {label}
-                </Link>
-              </li>
-            );
-          })}
-          <li className="ml-2 sm:ml-4">
-            <AdminLogoutButton />
-          </li>
-        </ul>
+                  <span>{section.title}</span>
+                  <ChevronDown
+                    className={`size-3.5 transition-transform duration-200 ${
+                      isCollapsed ? "-rotate-90" : "rotate-0"
+                    }`}
+                  />
+                </button>
+              ) : (
+                <div className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  {section.title}
+                </div>
+              )}
+
+              {!isCollapsed && (
+                <ul className="mt-0.5 space-y-0.5">
+                  {section.items.map(({ label, href, icon: Icon }) => {
+                    const isActive = label === active;
+                    return (
+                      <li key={label}>
+                        <Link
+                          href={href}
+                          aria-current={isActive ? "page" : undefined}
+                          className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition ${
+                            isActive
+                              ? "bg-indigo-600 font-medium text-white shadow-sm"
+                              : "text-slate-300 hover:bg-slate-700/60 hover:text-white"
+                          }`}
+                        >
+                          <Icon className="size-4 shrink-0" />
+                          <span className="truncate">{label}</span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </nav>
+
+      <div className="border-t border-slate-700 p-2.5">
+        <AdminLogoutButton className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm font-medium text-slate-300 transition hover:bg-rose-600/20 hover:text-rose-300" />
       </div>
-    </nav>
+    </div>
   );
 }
