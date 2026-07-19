@@ -662,16 +662,11 @@ export async function deleteAdminUser(
     }
   }
 
-  // Proteksi (khusus super admin): pastikan ada minimal 1 super admin lain
-  if (actor.role === "super_admin") {
-    const superAdmins = await db
-      .select({ id: profiles.id })
-      .from(profiles)
-      .where(eq(profiles.role, "super_admin"));
-    if (superAdmins.length <= 1) {
-      return { error: "Tidak dapat menghapus satu-satunya Super Admin." };
-    }
-  }
+  // Catatan: proteksi "satu-satunya super admin" sudah ter-cover oleh:
+  //   - Line di atas: block self-delete (adminId === actor.actorId).
+  //   - Line sebelumnya: block delete target yang role-nya super_admin.
+  // Tidak perlu cek count super_admin tambahan — kalau target bukan super_admin,
+  // delete diizinkan tanpa syarat jumlah super admin di sistem.
 
   // Lepaskan relasi anteseden sebelum hapus profile target supaya tidak ada
   // referensi menggantung:

@@ -9,12 +9,6 @@ function formatRupiah(value: number): string {
   return `Rp ${value.toLocaleString("id-ID")}`;
 }
 
-function formatRupiahCompact(value: number): string {
-  if (value >= 1_000_000) return `Rp ${(value / 1_000_000).toFixed(1)} jt`;
-  if (value >= 1_000) return `Rp ${(value / 1_000).toFixed(0)}rb`;
-  return formatRupiah(value);
-}
-
 type SearchParams = Promise<{ from?: string; to?: string }>;
 
 export default async function AdminDashboardPage({
@@ -93,12 +87,12 @@ export default async function AdminDashboardPage({
       <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2">
         <PeriodCard
           title={`Total Isi Ulang (${periodLabel})`}
-          amount={formatRupiahCompact(stats.totalDepositAmount)}
+          amount={formatRupiah(stats.totalDepositAmount)}
           variant="blue"
         />
         <PeriodCard
           title={`Total Penarikan (${periodLabel})`}
-          amount={formatRupiahCompact(stats.totalWithdrawalAmount)}
+          amount={formatRupiah(stats.totalWithdrawalAmount)}
           variant="red"
         />
       </div>
