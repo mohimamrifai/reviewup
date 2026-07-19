@@ -66,7 +66,7 @@ const sections: Section[] = [
         label: "Tujuan Deposit",
         href: "/admin/deposit-bank",
         icon: Landmark,
-        superAdminOnly: true,
+        leaderOrSuperOnly: true,
       },
     ],
   },

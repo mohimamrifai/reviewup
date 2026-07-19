@@ -40,10 +40,10 @@ type AuditLog = {
   note: string | null;
   metadata: string | null;
   createdAt: string;
-  actorId: string;
+  actorId: string | null;
   actorUsername: string | null;
   actorRole: string | null;
-  targetId: string;
+  targetId: string | null;
   targetUsername: string | null;
   targetRole: string | null;
 };

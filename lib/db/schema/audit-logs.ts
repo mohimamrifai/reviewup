@@ -13,6 +13,9 @@ import { profiles } from "./profiles";
 /**
  * Audit log untuk perubahan yang dilakukan admin terhadap data member.
  * Dipakai untuk mencatat perubahan saldo manual, perubahan level, dll.
+ *
+ * `actorId` & `targetId` nullable: saat admin/target dihapus, audit log
+ * dipertahankan untuk compliance dengan FK di-set NULL (bukan RESTRICT/CASCADE).
  */
 export const auditLogs = pgTable(
   "audit_logs",
@@ -20,12 +23,12 @@ export const auditLogs = pgTable(
     id: uuid("id")
       .primaryKey()
       .default(sql`gen_random_uuid()`),
-    actorId: uuid("actor_id")
-      .notNull()
-      .references(() => profiles.id, { onDelete: "restrict" }),
-    targetId: uuid("target_id")
-      .notNull()
-      .references(() => profiles.id, { onDelete: "cascade" }),
+    actorId: uuid("actor_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    targetId: uuid("target_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
     action: text("action").notNull(),
     amount: numeric("amount", { precision: 15, scale: 2 }),
     note: text("note"),

@@ -637,13 +637,23 @@ export async function deleteAdminUser(
     }
   }
 
-  // Re-assign member yang direferensikan oleh staff ini ke null (orphan)
-  // Supaya tidak ada FK constraint error (meskipun tidak ada FK declared, kita eksplisit).
+  // Lepaskan relasi anteseden sebelum hapus profile target supaya tidak ada
+  // referensi menggantung:
+  //   - Jika target = admin_staff: anggota yang referredBy = target jadi orphan
+  //     (set referredBy = null).
+  //   - Jika target = admin_leader: staff yang leaderId = target jadi orphan
+  //     (set leaderId = null) supaya query tim tidak error.
   if (target.role === "admin_staff") {
     await db
       .update(profiles)
       .set({ referredBy: null })
       .where(eq(profiles.referredBy, adminId));
+  }
+  if (target.role === "admin_leader") {
+    await db
+      .update(profiles)
+      .set({ leaderId: null })
+      .where(eq(profiles.leaderId, adminId));
   }
 
   // Hapus auth user (CASCADE ke profile via trigger / ON DELETE CASCADE di FK)

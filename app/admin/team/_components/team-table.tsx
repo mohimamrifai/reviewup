@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   Copy,
   Eye,
@@ -140,11 +140,17 @@ function ResetPasswordModal({
   const [state, action] = useActionState(resetAdminPassword, initialState);
   const [pending, startTransition] = useTransition();
   const [showPassword, setShowPassword] = useState(true);
+  // Simpan callback terbaru di ref agar useEffect tidak retrigger tiap parent re-render
+  // (arrow function dari parent bikin reference identity berubah setiap render).
+  const onResetRef = useRef(onReset);
+  useEffect(() => {
+    onResetRef.current = onReset;
+  }, [onReset]);
 
   useEffect(() => {
     if (state === initialState) return;
-    if (state.success) onReset(state.message ?? "Password di-reset.");
-  }, [state, onReset]);
+    if (state.success) onResetRef.current(state.message ?? "Password di-reset.");
+  }, [state]);
 
   useModalLifecycle(onClose);
 
@@ -301,13 +307,18 @@ function EditAdminModal({
   const [state, action] = useActionState(updateAdminUser, initialState);
   const [pending, startTransition] = useTransition();
   const [currentRole, setCurrentRole] = useState<AdminRole>(admin.role);
+  // Simpan callback terbaru di ref agar useEffect tidak retrigger tiap parent re-render.
+  const onSavedRef = useRef(onSaved);
+  useEffect(() => {
+    onSavedRef.current = onSaved;
+  }, [onSaved]);
 
   // Pakai reference equality: `state === initialState` artinya action belum pernah dipanggil.
   // Aman terhadap React StrictMode (double-invoke effect di dev).
   useEffect(() => {
     if (state === initialState) return;
-    if (state.success && state.message) onSaved(state.message);
-  }, [state, onSaved]);
+    if (state.success && state.message) onSavedRef.current(state.message);
+  }, [state]);
 
   useModalLifecycle(onClose);
 
@@ -495,11 +506,15 @@ function DeleteAdminModal({
 }) {
   const [state, action] = useActionState(deleteAdminUser, initialState);
   const [pending, startTransition] = useTransition();
+  const onDeletedRef = useRef(onDeleted);
+  useEffect(() => {
+    onDeletedRef.current = onDeleted;
+  }, [onDeleted]);
 
   useEffect(() => {
     if (state === initialState) return;
-    if (state.success && state.message) onDeleted(state.message);
-  }, [state, onDeleted]);
+    if (state.success && state.message) onDeletedRef.current(state.message);
+  }, [state]);
 
   useModalLifecycle(onClose);
 
@@ -604,15 +619,20 @@ function CreateAdminModal({
   const [role, setRole] = useState<"admin_leader" | "admin_staff" | "">(
     canCreateLeader ? "" : "admin_staff",
   );
+  // Simpan callback terbaru di ref agar useEffect tidak retrigger tiap parent re-render.
+  const onCreatedRef = useRef(onCreated);
+  useEffect(() => {
+    onCreatedRef.current = onCreated;
+  }, [onCreated]);
 
   // Pakai reference equality: `state === initialState` artinya action belum pernah dipanggil.
   // Aman terhadap React StrictMode (double-invoke effect di dev).
   useEffect(() => {
     if (state === initialState) return;
     if (state.success) {
-      onCreated(state);
+      onCreatedRef.current(state);
     }
-  }, [state, onCreated]);
+  }, [state]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -1081,6 +1101,17 @@ export function TeamTable({
                           <Pencil className="size-3" />
                           Edit
                         </button>
+                        {a.id !== currentLeaderId && (
+                          <button
+                            type="button"
+                            aria-label={`Reset password @${a.username}`}
+                            onClick={() => setResetting(a)}
+                            className="inline-flex items-center justify-center gap-1 rounded-md bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-200"
+                          >
+                            <KeyRound className="size-3" />
+                            Reset
+                          </button>
+                        )}
                         <button
                           type="button"
                           aria-label={`Hapus @${a.username}`}

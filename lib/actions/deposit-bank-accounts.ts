@@ -54,8 +54,9 @@ export type DepositBankAccountState = {
 
 /**
  * Pemeriksaan peran + override untuk aksi CRUD deposit bank accounts.
- * Yang boleh: super_admin, admin_leader (role-based), atau siapa saja yang
- * punya override flag `depositBankCrud = true` di `access_overrides`.
+ * Yang boleh: super_admin (selalu), atau siapa pun yang punya override
+ * `depositBankCrud = true` di `access_overrides` (termasuk admin_leader).
+ * Role `admin_leader`/`admin_staff` tanpa override ditolak.
  */
 async function requireBankAccountManager(): Promise<{ actorId: string; scope: Scope }> {
   const supabase = await createClient();
@@ -68,10 +69,9 @@ async function requireBankAccountManager(): Promise<{ actorId: string; scope: Sc
   if (!scope) throw new Error("FORBIDDEN");
 
   const isSuper = scope.role === "super_admin";
-  const isLeader = scope.role === "admin_leader";
   const hasOverride = scope.overrides.depositBankCrud === true;
 
-  if (!isSuper && !isLeader && !hasOverride) {
+  if (!isSuper && !hasOverride) {
     throw new Error("FORBIDDEN");
   }
   return { actorId: user.id, scope };

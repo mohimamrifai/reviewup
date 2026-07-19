@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
+import { getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { depositBankAccounts, profiles } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
@@ -21,9 +22,13 @@ export default async function AdminDepositBankPage() {
     .limit(1);
   if (!me || me.role === "member") redirect("/admin/login");
 
-  // Hanya leader & super admin yang boleh akses
-  if (me.role !== "admin_leader" && me.role !== "super_admin") {
-    redirect("/admin/dashboard");
+  // Super admin selalu boleh akses. Admin leader butuh override `depositBankCrud`.
+  if (me.role === "admin_staff") redirect("/admin/dashboard");
+  if (me.role === "admin_leader") {
+    const scope = await getScope(user.id);
+    if (scope?.overrides.depositBankCrud !== true) {
+      redirect("/admin/dashboard");
+    }
   }
 
   const rows = await db
