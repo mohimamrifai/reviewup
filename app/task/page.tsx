@@ -13,6 +13,10 @@ import { CommissionTicker } from "./_components/commission-ticker";
 import { StartTaskButton } from "./_components/start-task-button";
 import { BottomNav } from "../_components/bottom-nav";
 
+// Halaman menampilkan saldo (utama + beku) yang sensitif terhadap perubahan
+// di server actions lain. Paksa dynamic agar tidak menampilkan nilai stale.
+export const dynamic = "force-dynamic";
+
 const ACTIVE_STATUSES = ["dipilih", "dikerjakan"] as const;
 
 function formatRupiah(value: string | number) {

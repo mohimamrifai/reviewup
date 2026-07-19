@@ -231,6 +231,7 @@ export async function submitTask(
   revalidatePath("/admin/task");
   revalidatePath("/admin/users");
   revalidatePath("/profil");
+  revalidatePath("/task");
   return {
     success: true,
     message: "Tugas berhasil dimulai. Mohon tunggu verifikasi admin.",
