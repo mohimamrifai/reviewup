@@ -23,16 +23,6 @@ export type AdminUserState = {
   targetId?: string;
 };
 
-function generatePassword(length = 8): string {
-  // Exclude 0/O/1/l untuk mengurangi kebingungan saat diketik
-  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-  let out = "";
-  for (let i = 0; i < length; i++) {
-    out += alphabet[Math.floor(Math.random() * alphabet.length)];
-  }
-  return out;
-}
-
 function generateReferralCode(): string {
   const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   let out = "STAFF-";
@@ -89,38 +79,52 @@ async function requireTeamManager(): Promise<{
   return { actorId: user.id, role: scope.role, scope };
 }
 
-const createSchema = z.object({
-  username: z
-    .string()
-    .trim()
-    .min(3, "Username minimal 3 karakter.")
-    .max(20, "Username maksimal 20 karakter.")
-    .regex(/^[a-zA-Z0-9_]+$/, "Hanya huruf, angka, dan underscore."),
-  role: z.enum(["admin_leader", "admin_staff"], {
-    message: "Role harus Leader atau Staff.",
-  }),
-  /**
-   * Wajib untuk role `admin_staff`: pilih leader yang menaungi.
-   * Untuk role `admin_leader`, abaikan.
-   * Jika actor=admin_leader, leaderId akan diabaikan dan dipaksa ke actor.id.
-   */
-  leaderId: z.string().uuid("ID leader tidak valid.").optional().or(z.literal("")),
-  /**
-   * Referral manual (custom) untuk role `admin_staff`. Boleh angka, huruf,
-   * underscore, atau hyphen. Jika kosong, sistem auto-generate.
-   * Tidak berlaku untuk role `admin_leader`.
-   */
-  referralCode: z
-    .string()
-    .trim()
-    .max(20)
-    .optional()
-    .or(z.literal(""))
-    .refine(
-      (v) => !v || /^[a-zA-Z0-9_-]+$/.test(v),
-      "Referral hanya huruf, angka, underscore, dan hyphen.",
-    ),
-});
+const createSchema = z
+  .object({
+    username: z
+      .string()
+      .trim()
+      .min(3, "Username minimal 3 karakter.")
+      .max(20, "Username maksimal 20 karakter.")
+      .regex(/^[a-zA-Z0-9_]+$/, "Hanya huruf, angka, dan underscore."),
+    role: z.enum(["admin_leader", "admin_staff"], {
+      message: "Role harus Leader atau Staff.",
+    }),
+    /**
+     * Wajib untuk role `admin_staff`: pilih leader yang menaungi.
+     * Untuk role `admin_leader`, abaikan.
+     * Jika actor=admin_leader, leaderId akan diabaikan dan dipaksa ke actor.id.
+     */
+    leaderId: z.string().uuid("ID leader tidak valid.").optional().or(z.literal("")),
+    /**
+     * Referral manual (custom) untuk role `admin_staff`. Boleh angka, huruf,
+     * underscore, atau hyphen. Jika kosong, sistem auto-generate.
+     * Tidak berlaku untuk role `admin_leader`.
+     */
+    referralCode: z
+      .string()
+      .trim()
+      .max(20)
+      .optional()
+      .or(z.literal(""))
+      .refine(
+        (v) => !v || /^[a-zA-Z0-9_-]+$/.test(v),
+        "Referral hanya huruf, angka, underscore, dan hyphen.",
+      ),
+    /**
+     * Password diisi manual oleh admin (tidak di-generate sistem).
+     * Wajib diisi, minimal 6 karakter, harus sama dengan `passwordConfirmation`.
+     */
+    password: z
+      .string()
+      .min(6, "Password minimal 6 karakter.")
+      .max(72, "Password maksimal 72 karakter."),
+    passwordConfirmation: z.string(),
+  })
+  .refine((data) => data.password === data.passwordConfirmation, {
+    message: "Password dan konfirmasi tidak cocok.",
+    path: ["passwordConfirmation"],
+  });
 
 export async function createAdminUser(
   _prev: AdminUserState,
@@ -138,6 +142,8 @@ export async function createAdminUser(
     role: formData.get("role"),
     leaderId: formData.get("leaderId") || undefined,
     referralCode: formData.get("referralCode") || "",
+    password: formData.get("password") || "",
+    passwordConfirmation: formData.get("passwordConfirmation") || "",
   });
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors };
@@ -150,6 +156,7 @@ export async function createAdminUser(
     parsed.data.referralCode && parsed.data.referralCode.length >= 3
       ? parsed.data.referralCode
       : null;
+  const password = parsed.data.password;
 
   // Enforce izin override flags (access_overrides):
   //  - super_admin selalu boleh keduanya.
@@ -204,8 +211,6 @@ export async function createAdminUser(
     return { fieldErrors: { username: ["Username sudah dipakai."] } };
   }
 
-  const generatedPassword = generatePassword(10);
-
   // Referral code hanya untuk staff; untuk leader NULL.
   // Jika admin menginput referral manual, pakai itu. Validasi keunikan.
   let referralCode: string | null = null;
@@ -248,7 +253,7 @@ export async function createAdminUser(
   try {
     const { data, error } = await admin.auth.admin.createUser({
       email: `${username.toLowerCase()}@reviewup.app`,
-      password: generatedPassword,
+      password,
       email_confirm: true,
       user_metadata: {
         username,
@@ -303,7 +308,6 @@ export async function createAdminUser(
   return {
     success: true,
     message: `Akun ${role === "admin_leader" ? "Admin Leader" : "Admin Staff"} berhasil dibuat.`,
-    generatedPassword,
     generatedReferralCode: referralCode ?? undefined,
     targetId: createdUser.id,
   };
@@ -508,9 +512,23 @@ export async function updateAdminUser(
 
 // ===== resetAdminPassword =====
 
-const resetAdminPasswordSchema = z.object({
-  adminId: z.string().uuid("ID admin tidak valid."),
-});
+const resetAdminPasswordSchema = z
+  .object({
+    adminId: z.string().uuid("ID admin tidak valid."),
+    /**
+     * Password baru diisi manual oleh admin (tidak di-generate sistem).
+     * Wajib diisi, minimal 6 karakter, harus sama dengan `passwordConfirmation`.
+     */
+    password: z
+      .string()
+      .min(6, "Password minimal 6 karakter.")
+      .max(72, "Password maksimal 72 karakter."),
+    passwordConfirmation: z.string(),
+  })
+  .refine((data) => data.password === data.passwordConfirmation, {
+    message: "Password dan konfirmasi tidak cocok.",
+    path: ["passwordConfirmation"],
+  });
 
 export async function resetAdminPassword(
   _prev: AdminUserState,
@@ -525,12 +543,14 @@ export async function resetAdminPassword(
 
   const parsed = resetAdminPasswordSchema.safeParse({
     adminId: formData.get("adminId"),
+    password: formData.get("password") || "",
+    passwordConfirmation: formData.get("passwordConfirmation") || "",
   });
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
-  const { adminId } = parsed.data;
+  const { adminId, password } = parsed.data;
 
   if (adminId === actor.actorId) {
     return { error: "Tidak dapat reset password akun Anda sendiri di sini." };
@@ -559,11 +579,9 @@ export async function resetAdminPassword(
     }
   }
 
-  const newPassword = generatePassword(10);
-
   const admin = createAdminClient();
   const { error: updErr } = await admin.auth.admin.updateUserById(adminId, {
-    password: newPassword,
+    password,
   });
   if (updErr) {
     console.error("[resetAdminPassword] updateUserById error:", updErr);
@@ -585,8 +603,7 @@ export async function resetAdminPassword(
   revalidatePath("/admin/team");
   return {
     success: true,
-    message: `Password @${target.username} berhasil di-reset. Salin password baru di bawah.`,
-    generatedPassword: newPassword,
+    message: `Password @${target.username} berhasil di-reset.`,
   };
 }
 

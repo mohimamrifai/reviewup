@@ -141,7 +141,8 @@ function ResetPasswordModal({
 }) {
   const [state, action] = useActionState(resetAdminPassword, initialState);
   const [pending, startTransition] = useTransition();
-  const [showPassword, setShowPassword] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
   // Simpan callback terbaru di ref agar useEffect tidak retrigger tiap parent re-render
   // (arrow function dari parent bikin reference identity berubah setiap render).
   const onResetRef = useRef(onReset);
@@ -155,12 +156,6 @@ function ResetPasswordModal({
   }, [state]);
 
   useModalLifecycle(onClose);
-
-  function copyPassword() {
-    if (state.generatedPassword) {
-      navigator.clipboard.writeText(state.generatedPassword);
-    }
-  }
 
   return (
     <div
@@ -188,44 +183,16 @@ function ResetPasswordModal({
           </button>
         </div>
 
-        {state.success && state.generatedPassword ? (
+        {state.success ? (
           <div className="space-y-3">
             <div className="rounded-md bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800 sm:text-xs">
               {state.message}
             </div>
-            <div>
-              <label className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs">
-                Password baru (simpan &amp; bagikan ke admin)
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  readOnly
-                  value={state.generatedPassword}
-                  className={`${inputClass} font-mono tracking-wider`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? "Sembunyikan" : "Tampilkan"}
-                  className="rounded-md bg-zinc-100 p-2 text-zinc-600 transition hover:bg-zinc-200"
-                >
-                  {showPassword ? (
-                    <EyeOff className="size-4" />
-                  ) : (
-                    <Eye className="size-4" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={copyPassword}
-                  aria-label="Salin"
-                  className="rounded-md bg-indigo-100 p-2 text-indigo-700 transition hover:bg-indigo-200"
-                >
-                  <Copy className="size-4" />
-                </button>
-              </div>
-            </div>
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-800 sm:text-xs">
+              <strong>Penting:</strong> Berikan password baru ke admin terkait
+              melalui channel yang aman. Password tidak akan ditampilkan lagi di
+              sistem.
+            </p>
             <div className="flex justify-end pt-1">
               <button
                 type="button"
@@ -239,13 +206,13 @@ function ResetPasswordModal({
         ) : (
           <>
             <p className="text-[11px] text-zinc-600 sm:text-xs">
-              Password admin{" "}
-              <span className="font-semibold text-zinc-900">@{admin.username}</span>{" "}
-              akan di-generate ulang. Password lama akan diganti.
+              Masukkan password baru untuk admin{" "}
+              <span className="font-semibold text-zinc-900">@{admin.username}</span>.
+              Password lama akan diganti dengan yang baru.
             </p>
             <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-800 sm:text-xs">
-              <strong>Catatan:</strong> Pastikan untuk mencatat atau membagikan
-              password baru karena tidak akan ditampilkan lagi.
+              <strong>Catatan:</strong> Pastikan untuk membagikan password baru
+              ke admin terkait karena tidak akan ditampilkan lagi.
             </p>
 
             <form
@@ -253,6 +220,87 @@ function ResetPasswordModal({
               className="mt-4 space-y-3"
             >
               <input type="hidden" name="adminId" value={admin.id} />
+
+              <div>
+                <label
+                  htmlFor="password"
+                  className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs"
+                >
+                  Password Baru <span className="text-rose-600">*</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    minLength={6}
+                    maxLength={72}
+                    autoComplete="new-password"
+                    placeholder="Minimal 6 karakter"
+                    disabled={pending}
+                    className={inputClass}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Sembunyikan" : "Tampilkan"}
+                    className="rounded-md bg-zinc-100 p-2 text-zinc-600 transition hover:bg-zinc-200"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
+                  </button>
+                </div>
+                {state.fieldErrors?.password ? (
+                  <p className="mt-1 rounded-md bg-rose-50 px-3 py-2 text-[11px] text-rose-700 sm:text-xs">
+                    {state.fieldErrors.password[0]}
+                  </p>
+                ) : null}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="passwordConfirmation"
+                  className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs"
+                >
+                  Konfirmasi Password Baru{" "}
+                  <span className="text-rose-600">*</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="passwordConfirmation"
+                    name="passwordConfirmation"
+                    type={showPasswordConfirmation ? "text" : "password"}
+                    required
+                    minLength={6}
+                    maxLength={72}
+                    autoComplete="new-password"
+                    placeholder="Ketik ulang password"
+                    disabled={pending}
+                    className={inputClass}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordConfirmation((v) => !v)}
+                    aria-label={showPasswordConfirmation ? "Sembunyikan" : "Tampilkan"}
+                    className="rounded-md bg-zinc-100 p-2 text-zinc-600 transition hover:bg-zinc-200"
+                  >
+                    {showPasswordConfirmation ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
+                  </button>
+                </div>
+                {state.fieldErrors?.passwordConfirmation ? (
+                  <p className="mt-1 rounded-md bg-rose-50 px-3 py-2 text-[11px] text-rose-700 sm:text-xs">
+                    {state.fieldErrors.passwordConfirmation[0]}
+                  </p>
+                ) : null}
+              </div>
 
               {state.error && (
                 <p className="rounded-md bg-rose-50 px-3 py-2 text-[11px] text-rose-700 sm:text-xs">
@@ -783,7 +831,8 @@ function CreateAdminModal({
 }) {
   const [state, action] = useActionState(createAdminUser, initialState);
   const [pending, startTransition] = useTransition();
-  const [showPassword, setShowPassword] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
   const [role, setRole] = useState<"admin_leader" | "admin_staff" | "">(
     canCreateLeader ? "" : "admin_staff",
   );
@@ -815,12 +864,6 @@ function CreateAdminModal({
     };
   }, [onClose]);
 
-  function copyPassword() {
-    if (state.generatedPassword) {
-      navigator.clipboard.writeText(state.generatedPassword);
-    }
-  }
-
   return (
     <div
       role="dialog"
@@ -847,43 +890,10 @@ function CreateAdminModal({
           </button>
         </div>
 
-        {state.success && state.generatedPassword ? (
+        {state.success ? (
           <div className="space-y-3">
             <div className="rounded-md bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800 sm:text-xs">
               {state.message}
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs">
-                Password (simpan &amp; bagikan ke admin baru)
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  readOnly
-                  value={state.generatedPassword}
-                  className={`${inputClass} font-mono tracking-wider`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? "Sembunyikan" : "Tampilkan"}
-                  className="rounded-md bg-zinc-100 p-2 text-zinc-600 transition hover:bg-zinc-200"
-                >
-                  {showPassword ? (
-                    <EyeOff className="size-4" />
-                  ) : (
-                    <Eye className="size-4" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={copyPassword}
-                  aria-label="Salin"
-                  className="rounded-md bg-indigo-100 p-2 text-indigo-700 transition hover:bg-indigo-200"
-                >
-                  <Copy className="size-4" />
-                </button>
-              </div>
             </div>
             {state.generatedReferralCode && (
               <div>
@@ -1001,9 +1011,91 @@ function CreateAdminModal({
                 className={inputClass}
               />
               <p className="mt-1 text-[11px] text-zinc-500 sm:text-xs">
-                3-20 karakter, hanya huruf, angka, dan underscore. Password akan
-                di-generate otomatis.
+                3-20 karakter, hanya huruf, angka, dan underscore.
               </p>
+            </div>
+
+            <div>
+              <label
+                htmlFor="password"
+                className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs"
+              >
+                Password <span className="text-rose-600">*</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  minLength={6}
+                  maxLength={72}
+                  autoComplete="new-password"
+                  placeholder="Minimal 6 karakter"
+                  disabled={pending}
+                  className={inputClass}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Sembunyikan" : "Tampilkan"}
+                  className="rounded-md bg-zinc-100 p-2 text-zinc-600 transition hover:bg-zinc-200"
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
+              </div>
+              <p className="mt-1 text-[11px] text-zinc-500 sm:text-xs">
+                Password diisi manual oleh admin. Minimal 6 karakter.
+              </p>
+              {state.fieldErrors?.password ? (
+                <p className="mt-1 rounded-md bg-rose-50 px-3 py-2 text-[11px] text-rose-700 sm:text-xs">
+                  {state.fieldErrors.password[0]}
+                </p>
+              ) : null}
+            </div>
+
+            <div>
+              <label
+                htmlFor="passwordConfirmation"
+                className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs"
+              >
+                Konfirmasi Password <span className="text-rose-600">*</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="passwordConfirmation"
+                  name="passwordConfirmation"
+                  type={showPasswordConfirmation ? "text" : "password"}
+                  required
+                  minLength={6}
+                  maxLength={72}
+                  autoComplete="new-password"
+                  placeholder="Ketik ulang password"
+                  disabled={pending}
+                  className={inputClass}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordConfirmation((v) => !v)}
+                  aria-label={showPasswordConfirmation ? "Sembunyikan" : "Tampilkan"}
+                  className="rounded-md bg-zinc-100 p-2 text-zinc-600 transition hover:bg-zinc-200"
+                >
+                  {showPasswordConfirmation ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
+              </div>
+              {state.fieldErrors?.passwordConfirmation ? (
+                <p className="mt-1 rounded-md bg-rose-50 px-3 py-2 text-[11px] text-rose-700 sm:text-xs">
+                  {state.fieldErrors.passwordConfirmation[0]}
+                </p>
+              ) : null}
             </div>
 
             {role === "admin_staff" && (
