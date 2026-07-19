@@ -47,6 +47,7 @@ const PERMISSION_LABELS: { key: keyof AccessOverrides; label: string; descriptio
   { key: "canCreateLeader", label: "Buat Leader", description: "Buat akun Admin Leader" },
   { key: "commissionEdit", label: "Edit Komisi", description: "Ubah rate komisi staff" },
   { key: "depositBankCrud", label: "CRUD Rekening", description: "Kelola rekening tujuan deposit" },
+  { key: "channelCrud", label: "CRUD Pelayanan", description: "Kelola channel pelayanan (CS)" },
 ];
 
 function EditPermissionsModal({
@@ -171,7 +172,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 function countActive(o: AccessOverrides): number {
-  return [o.fullAccess, o.canCreateStaff, o.canCreateLeader, o.commissionEdit, o.depositBankCrud].filter(
+  return [o.fullAccess, o.canCreateStaff, o.canCreateLeader, o.commissionEdit, o.depositBankCrud, o.channelCrud].filter(
     Boolean,
   ).length;
 }

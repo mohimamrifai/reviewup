@@ -55,6 +55,10 @@ const overrideSchema = z.object({
     .union([z.literal("on"), z.literal("off"), z.literal("")])
     .optional()
     .transform((v) => v === "on"),
+  channelCrud: z
+    .union([z.literal("on"), z.literal("off"), z.literal("")])
+    .optional()
+    .transform((v) => v === "on"),
 });
 
 export async function setAccessOverrides(
@@ -75,6 +79,7 @@ export async function setAccessOverrides(
     canCreateLeader: formData.get("canCreateLeader") || "off",
     commissionEdit: formData.get("commissionEdit") || "off",
     depositBankCrud: formData.get("depositBankCrud") || "off",
+    channelCrud: formData.get("channelCrud") || "off",
   });
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors };
@@ -107,6 +112,7 @@ export async function setAccessOverrides(
     ...(flags.canCreateLeader ? { canCreateLeader: true } : {}),
     ...(flags.commissionEdit ? { commissionEdit: true } : {}),
     ...(flags.depositBankCrud ? { depositBankCrud: true } : {}),
+    ...(flags.channelCrud ? { channelCrud: true } : {}),
   };
 
   await db

@@ -31,6 +31,11 @@ type Item = {
   icon: typeof LayoutDashboard;
   superAdminOnly?: boolean;
   leaderOrSuperOnly?: boolean;
+  /**
+   * Butuh izin `channelCrud` di access_overrides (untuk admin leader/staff).
+   * Super Admin otomatis lolos.
+   */
+  requiresChannelCrud?: boolean;
 };
 
 type Section = {
@@ -99,7 +104,12 @@ const sections: Section[] = [
     items: [
       { label: "Anggota", href: "/admin/users", icon: Users2 },
       { label: "Produk", href: "/admin/product", icon: Package },
-      { label: "Pelayanan", href: "/admin/pelayanan", icon: Headphones },
+      {
+        label: "Pelayanan",
+        href: "/admin/pelayanan",
+        icon: Headphones,
+        requiresChannelCrud: true,
+      },
     ],
   },
   {
@@ -118,11 +128,13 @@ const sections: Section[] = [
 type Props = {
   isSuperAdmin?: boolean;
   isLeader?: boolean;
+  canManageChannels?: boolean;
 };
 
 export function AdminNav({
   isSuperAdmin = false,
   isLeader = false,
+  canManageChannels = false,
 }: Props) {
   const pathname = usePathname() ?? "";
   const [open, setOpen] = useState(false);
@@ -136,11 +148,12 @@ export function AdminNav({
         items: s.items.filter((i) => {
           if (i.superAdminOnly && !isSuperAdmin) return false;
           if (i.leaderOrSuperOnly && !isSuperAdmin && !isLeader) return false;
+          if (i.requiresChannelCrud && !canManageChannels) return false;
           return true;
         }),
       }))
       .filter((s) => s.items.length > 0);
-  }, [isSuperAdmin, isLeader]);
+  }, [isSuperAdmin, isLeader, canManageChannels]);
 
   // Tentukan href yang sedang aktif (match persis atau prefix nested).
   // Digunakan untuk highlight link & buka otomatis section berisi halaman aktif.

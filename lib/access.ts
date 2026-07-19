@@ -27,6 +27,7 @@ export type AccessOverrides = {
   canCreateLeader?: boolean;
   commissionEdit?: boolean;
   depositBankCrud?: boolean;
+  channelCrud?: boolean;
 };
 
 export type Scope = {
@@ -62,6 +63,7 @@ function readOverrides(raw: unknown): AccessOverrides {
     canCreateLeader: obj.canCreateLeader === true,
     commissionEdit: obj.commissionEdit === true,
     depositBankCrud: obj.depositBankCrud === true,
+    channelCrud: obj.channelCrud === true,
   };
 }
 

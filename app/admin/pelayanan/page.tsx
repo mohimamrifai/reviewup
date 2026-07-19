@@ -1,11 +1,36 @@
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
 
+import { getScope } from "@/lib/access";
 import { db } from "@/lib/db";
-import { customerServiceChannels } from "@/lib/db/schema";
+import { customerServiceChannels, profiles } from "@/lib/db/schema";
+import { createClient } from "@/lib/supabase/server";
 
 import { PelayananTable } from "./_components/pelayanan-table";
 
 export default async function AdminPelayananPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/admin/login");
+
+  const [me] = await db
+    .select({ role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
+  if (!me || me.role === "member") redirect("/admin/login");
+
+  // Super admin selalu boleh akses. Admin leader / staff butuh override
+  // `channelCrud` yang diset oleh Super Admin di halaman Izin Akses.
+  if (me.role === "admin_leader" || me.role === "admin_staff") {
+    const scope = await getScope(user.id);
+    if (scope?.overrides.channelCrud !== true) {
+      redirect("/admin/dashboard");
+    }
+  }
+
   const rows = await db
     .select({
       id: customerServiceChannels.id,

@@ -65,7 +65,8 @@ export const profiles = pgTable(
      *   "canCreateStaff": boolean,    // boleh buat admin_staff
      *   "canCreateLeader": boolean,   // boleh buat admin_leader
      *   "commissionEdit": boolean,    // boleh edit rate komisi
-     *   "depositBankCrud": boolean    // boleh CRUD rekening deposit
+     *   "depositBankCrud": boolean,   // boleh CRUD rekening deposit
+     *   "channelCrud": boolean        // boleh CRUD channel pelayanan
      * }
      */
     accessOverrides: jsonb("access_overrides").notNull().default({}),

@@ -28,7 +28,7 @@ export default async function AdminLayout({ children }: Props) {
   if (!user) redirect("/admin/login");
 
   const [profile] = await db
-    .select({ role: profiles.role })
+    .select({ role: profiles.role, accessOverrides: profiles.accessOverrides })
     .from(profiles)
     .where(eq(profiles.id, user.id))
     .limit(1);
@@ -40,9 +40,20 @@ export default async function AdminLayout({ children }: Props) {
   const isSuperAdmin = profile.role === "super_admin";
   const isLeader = profile.role === "admin_leader";
 
+  // Super Admin selalu boleh; admin leader/staff hanya jika Super Admin
+  // mengaktifkan override `channelCrud` di halaman Izin Akses.
+  const overrides = (profile.accessOverrides ?? {}) as {
+    channelCrud?: boolean;
+  };
+  const canManageChannels = isSuperAdmin || overrides.channelCrud === true;
+
   return (
     <div className="min-h-screen bg-zinc-100 text-zinc-900 sm:pl-60">
-      <AdminNav isSuperAdmin={isSuperAdmin} isLeader={isLeader} />
+      <AdminNav
+        isSuperAdmin={isSuperAdmin}
+        isLeader={isLeader}
+        canManageChannels={canManageChannels}
+      />
       {children}
     </div>
   );

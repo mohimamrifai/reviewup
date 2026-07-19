@@ -4,8 +4,10 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { type Scope, getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { customerServiceChannels } from "@/lib/db/schema";
+import { createClient } from "@/lib/supabase/server";
 
 const channelSchema = z.object({
   type: z.enum(["whatsapp", "telegram"], {
@@ -44,10 +46,49 @@ export type ChannelState = {
   };
 };
 
+/**
+ * Pemeriksaan peran + override untuk aksi CRUD channel pelayanan.
+ * Yang boleh: super_admin (selalu), atau siapa pun yang punya override
+ * `channelCrud = true` di `access_overrides` (termasuk admin_leader /
+ * admin_staff yang diizinkan oleh Super Admin).
+ * Role `admin_leader`/`admin_staff` tanpa override ditolak.
+ */
+async function requireChannelManager(): Promise<{ actorId: string; scope: Scope }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("UNAUTHENTICATED");
+
+  const scope = await getScope(user.id);
+  if (!scope) throw new Error("FORBIDDEN");
+
+  const isSuper = scope.role === "super_admin";
+  const hasOverride = scope.overrides.channelCrud === true;
+
+  if (!isSuper && !hasOverride) {
+    throw new Error("FORBIDDEN");
+  }
+  return { actorId: user.id, scope };
+}
+
+function handleAuthError(e: unknown): ChannelState {
+  const msg = (e as Error).message;
+  if (msg === "FORBIDDEN")
+    return { error: "Anda tidak memiliki akses untuk aksi ini." };
+  return { error: "Sesi habis, silakan login ulang." };
+}
+
 export async function createChannel(
   _prev: ChannelState,
   formData: FormData,
 ): Promise<ChannelState> {
+  try {
+    await requireChannelManager();
+  } catch (e) {
+    return handleAuthError(e);
+  }
+
   const parsed = channelSchema.safeParse({
     type: formData.get("type"),
     label: formData.get("label"),
@@ -90,6 +131,12 @@ export async function updateChannel(
   _prev: ChannelState,
   formData: FormData,
 ): Promise<ChannelState> {
+  try {
+    await requireChannelManager();
+  } catch (e) {
+    return handleAuthError(e);
+  }
+
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
     return { error: "ID channel tidak valid." };
@@ -139,6 +186,12 @@ export async function deleteChannel(
   _prev: ChannelState,
   formData: FormData,
 ): Promise<ChannelState> {
+  try {
+    await requireChannelManager();
+  } catch (e) {
+    return handleAuthError(e);
+  }
+
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
     return { error: "ID channel tidak valid." };
