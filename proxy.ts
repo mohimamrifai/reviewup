@@ -14,8 +14,6 @@ const MEMBER_PREFIXES = [
 const ADMIN_PREFIXES = ["/admin"];
 const ADMIN_PUBLIC = ["/admin/login"];
 
-const MEMBER_PUBLIC = ["/login", "/register", "/"];
-
 function startsWithAny(pathname: string, prefixes: string[]) {
   return prefixes.some(
     (p) => pathname === p || pathname.startsWith(p + "/"),
@@ -59,9 +57,16 @@ export async function proxy(request: NextRequest) {
     },
   );
 
+  // Pakai getSession() (baca dari cookie, tanpa HTTP call) untuk routing
+  // decision. getUser() di sini akan trigger HTTP call ke Supabase Auth
+  // setiap request, yang pada Vercel cold start bisa timeout dan
+  // menyebabkan user dianggap logout padahal cookie masih valid.
+  // Validasi JWT penuh tetap dilakukan oleh getUser() di server pages
+  // dan server actions yang membaca data sensitif.
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
   const { pathname } = request.nextUrl;
 
   // Halaman admin: wajib login, kecuali /admin/login
@@ -73,11 +78,21 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Halaman member: wajib login
+  // Halaman member: wajib login sebagai role member
   if (startsWithAny(pathname, MEMBER_PREFIXES)) {
     if (!user) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
+      return NextResponse.redirect(url);
+    }
+    // Non-member (admin_staff / admin_leader / super_admin) yang akses
+    // halaman member akan dilempar ke dashboard admin. Role di-set di
+    // user_metadata saat signup (lihat lib/actions/auth.ts & admin-users.ts).
+    const role = (user.user_metadata as { role?: string } | undefined)
+      ?.role;
+    if (role !== "member") {
+      const url = request.nextUrl.clone();
+      url.pathname = role ? "/admin/dashboard" : "/admin/login";
       return NextResponse.redirect(url);
     }
   }

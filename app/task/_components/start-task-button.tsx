@@ -4,34 +4,30 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { Loader2 } from "lucide-react";
 
-import { useToast } from "@/app/_components/toast";
 import { requestTask } from "@/lib/actions/tasks-member";
 
 type Props = {
-  hasActiveTask: boolean;
   orderHref: string;
   label?: string;
 };
 
 export function StartTaskButton({
-  hasActiveTask,
   orderHref,
   label = "Mulai Tugas",
 }: Props) {
   const router = useRouter();
-  const { show } = useToast();
   const [pending, startTransition] = useTransition();
 
   function handleClick() {
-    if (hasActiveTask) {
-      show("Kamu sudah memiliki tugas yang belum di kerjakan.", "error");
-      return;
-    }
     startTransition(async () => {
       const fd = new FormData();
       const result = await requestTask({}, fd);
-      if (result.error) return;
-      router.push(orderHref);
+      // Selalu arahkan ke /order. Kalau user sudah punya request/task
+      // aktif sebelumnya, halaman /order akan menampilkan toast.
+      const url = result.hasExisting
+        ? `${orderHref}?hasExisting=1`
+        : orderHref;
+      router.push(url);
     });
   }
 

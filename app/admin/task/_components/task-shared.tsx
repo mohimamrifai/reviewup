@@ -40,6 +40,8 @@ export type MemberOption = {
 export type ProductOption = {
   id: number;
   name: string;
+  price: string;
+  imageUrl: string | null;
   isActive: boolean;
 };
 
@@ -87,8 +89,10 @@ export const aksiCellClass =
 // Formatters & state awal server actions
 // ============================================================
 
-export function formatRupiah(value: string | number) {
+export function formatRupiah(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return "Rp -";
   const num = typeof value === "string" ? Number(value) : value;
+  if (!Number.isFinite(num)) return "Rp -";
   return "Rp " + num.toLocaleString("id-ID");
 }
 

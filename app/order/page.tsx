@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { products, taskRequests, tasks } from "@/lib/db/schema";
@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 
 import { OrdersList } from "./_components/orders-list";
 import { PageHeader } from "./_components/header";
+import { ExistingTaskToast } from "./_components/existing-task-toast";
 import { BottomNav } from "../_components/bottom-nav";
 
 const STATUS_LABEL: Record<string, { label: string; variant: "blue" | "green" | "yellow" | "rose" | "amber" | "zinc" }> = {
@@ -15,8 +16,6 @@ const STATUS_LABEL: Record<string, { label: string; variant: "blue" | "green" | 
   selesai: { label: "Selesai", variant: "green" },
   dibatalkan: { label: "Dibatalkan", variant: "rose" },
 };
-
-const ACTIVE_TASK_STATUSES = ["dipilih"] as const;
 
 export default async function OrderPage() {
   const supabase = await createClient();
@@ -47,9 +46,7 @@ export default async function OrderPage() {
     })
     .from(tasks)
     .leftJoin(products, eq(tasks.productId, products.id))
-    .where(
-      sql`${tasks.memberId} = ${user.id} AND ${tasks.status} = ANY(${sql.raw(`ARRAY[${ACTIVE_TASK_STATUSES.map((status) => `'${status}'::task_status`).join(",")}]`)})`,
-    )
+    .where(eq(tasks.memberId, user.id))
     .orderBy(desc(tasks.createdAt));
 
   const [pendingRequest] = await db
@@ -77,20 +74,33 @@ export default async function OrderPage() {
     };
   });
 
+  // Pesan "tidak ada tugas aktif" / "Mohon menunggu..." muncul ketika
+  // member tidak punya tugas berstatus dipilih/dikerjakan. Tetap tampil
+  // walau di bawahnya ada card tugas selesai/dibatalkan sebagai histori.
+  const hasActiveTask = orders.some(
+    (o) => o.status === "dipilih" || o.status === "dikerjakan",
+  );
+
   return (
     <div className="min-h-full bg-zinc-50 pb-28">
       <PageHeader title="Tugas Saya" />
+      <ExistingTaskToast />
 
       <div className="mx-auto mt-3 max-w-lg px-4 sm:mt-4 sm:px-6">
-        {orders.length > 0 ? (
-          <OrdersList initialOrders={orders} />
-        ) : (
-          <p className="text-center text-sm text-zinc-600">
-            {pendingRequest
-              ? "Belum ada Tugas"
-              : "Belum ada tugas"}
+        {!hasActiveTask && (
+          <p className="mb-3 text-center text-sm text-zinc-600 sm:mb-4">
+            {pendingRequest ? (
+              <span>
+                <span className="block font-bold">Mohon menunggu...</span>
+                <span className="block">Sistem sedang menetapkan produk.</span>
+              </span>
+            ) : (
+              "Tidak ada tugas aktif"
+            )}
           </p>
         )}
+
+        {orders.length > 0 && <OrdersList initialOrders={orders} />}
       </div>
 
       <BottomNav />

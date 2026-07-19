@@ -95,7 +95,7 @@ export default async function TaskPage() {
           subtitle={`Komisi: ${levelRate}%`}
         />
 
-        <StartTaskButton hasActiveTask={hasActiveTask} orderHref="/order" />
+        <StartTaskButton orderHref="/order" />
 
         <CommissionTicker />
 

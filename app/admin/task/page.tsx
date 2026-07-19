@@ -61,7 +61,13 @@ export default async function AdminTaskPage() {
 
   // Ambil produk aktif
   const productRows = await db
-    .select({ id: products.id, name: products.name, isActive: products.isActive })
+    .select({
+      id: products.id,
+      name: products.name,
+      price: products.price,
+      imageUrl: products.imageUrl,
+      isActive: products.isActive,
+    })
     .from(products)
     .orderBy(products.name);
 
@@ -156,6 +162,8 @@ export default async function AdminTaskPage() {
         products={productRows.map((p) => ({
           id: p.id,
           name: p.name,
+          price: p.price,
+          imageUrl: p.imageUrl,
           isActive: p.isActive,
         }))}
       />

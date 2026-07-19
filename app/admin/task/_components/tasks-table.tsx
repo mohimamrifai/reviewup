@@ -5,6 +5,7 @@ import { Plus, Search } from "lucide-react";
 
 import { StatusBadge, type Status } from "./status-badge";
 import { AssignProductModal } from "./assign-product-modal";
+import { ConfirmTaskModal } from "./confirm-task-modal";
 import { CreateTaskModal } from "./create-task-modal";
 import { TaskStatusModal } from "./task-status-modal";
 import {
@@ -35,6 +36,7 @@ export function TasksTable({
   const [editing, setEditing] = useState<Task | null>(null);
   const [creating, setCreating] = useState(false);
   const [assigning, setAssigning] = useState<Task | null>(null);
+  const [confirming, setConfirming] = useState<Task | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const filtered = useMemo(() => {
@@ -195,7 +197,16 @@ export function TasksTable({
                           Pilih
                         </button>
                       ) : null}
-                      {t.kind === "task" ? (
+                      {t.kind === "task" && t.status === "dikerjakan" ? (
+                        <button
+                          type="button"
+                          onClick={() => setConfirming(t)}
+                          className="rounded-md bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-200 sm:text-sm"
+                        >
+                          Konfirmasi
+                        </button>
+                      ) : null}
+                      {t.kind === "task" && t.status !== "dikerjakan" ? (
                         <button
                           type="button"
                           onClick={() => setEditing(t)}
@@ -242,6 +253,18 @@ export function TasksTable({
           onClose={() => setAssigning(null)}
           onAssigned={(msg: string) => {
             setAssigning(null);
+            setToast({ type: "success", text: msg });
+            window.location.reload();
+          }}
+        />
+      )}
+
+      {confirming && (
+        <ConfirmTaskModal
+          task={confirming}
+          onClose={() => setConfirming(null)}
+          onConfirmed={(msg: string) => {
+            setConfirming(null);
             setToast({ type: "success", text: msg });
             window.location.reload();
           }}

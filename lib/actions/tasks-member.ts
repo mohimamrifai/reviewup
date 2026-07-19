@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export type TaskRequestState = {
   error?: string;
+  hasExisting?: boolean;
   success?: boolean;
   message?: string;
   taskId?: number;
@@ -52,7 +53,18 @@ export async function requestTask(
   const ctx = await getMemberContext();
   if (!ctx.ok) return ctx.error;
 
-  // Tolak hanya kalau member sudah punya tugas nyata yang sedang dipilih/dikerjakan.
+  // Tolak kalau member sudah punya request menunggu (admin belum memilih produk)
+  const pendingRequests = await db
+    .select({ id: taskRequests.id })
+    .from(taskRequests)
+    .where(eq(taskRequests.memberId, ctx.userId))
+    .limit(1);
+
+  if (pendingRequests.length > 0) {
+    return { hasExisting: true };
+  }
+
+  // Tolak kalau member sudah punya tugas nyata yang sedang dipilih/dikerjakan.
   const activeTasks = await db
     .select({ id: tasks.id, status: tasks.status })
     .from(tasks)
@@ -62,9 +74,7 @@ export async function requestTask(
     .limit(1);
 
   if (activeTasks.length > 0) {
-    return {
-      error: "Kamu masih memiliki tugas aktif. Selesaikan dulu sebelum meminta lagi.",
-    };
+    return { hasExisting: true };
   }
 
   const [created] = await db

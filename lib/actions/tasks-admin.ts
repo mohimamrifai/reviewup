@@ -487,10 +487,6 @@ const assignProductSchema = z.object({
     .number({ message: "Pilih produk." })
     .int()
     .positive("Produk tidak valid."),
-  price: z.coerce
-    .number({ message: "Harga wajib diisi." })
-    .positive("Harga harus lebih dari 0.")
-    .max(100_000_000, "Harga maksimal Rp 100.000.000."),
 });
 
 export type AssignProductState = TaskReviewState & { taskId?: number };
@@ -509,7 +505,6 @@ export async function assignProduct(
   const parsed = assignProductSchema.safeParse({
     taskId: formData.get("taskId"),
     productId: formData.get("productId"),
-    price: formData.get("price"),
   });
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors };
@@ -544,9 +539,9 @@ export async function assignProduct(
     return { error: "Anggota ini sedang diblokir. Buka blokir terlebih dahulu." };
   }
 
-  // Validasi produk: harus aktif
+  // Validasi produk: harus aktif. Ambil harga langsung dari produk.
   const [product] = await db
-    .select({ id: products.id, isActive: products.isActive })
+    .select({ id: products.id, isActive: products.isActive, price: products.price })
     .from(products)
     .where(eq(products.id, parsed.data.productId))
     .limit(1);
@@ -555,10 +550,11 @@ export async function assignProduct(
     return { error: "Produk ini tidak aktif, tidak bisa dipilih." };
   }
 
-  // Hitung komisi berdasar level member saat ini
+  // Harga & komisi dihitung otomatis dari produk dan level member.
+  const priceNum = Number(product.price);
   const ratePercent = await getCommissionRate(member.level as Level);
-  const commission = (parsed.data.price * ratePercent) / 100;
-  const priceStr = parsed.data.price.toFixed(2);
+  const commission = (priceNum * ratePercent) / 100;
+  const priceStr = product.price;
   const commissionStr = commission.toFixed(2);
 
   const [createdTask] = await db
@@ -586,7 +582,7 @@ export async function assignProduct(
       requestId: parsed.data.taskId,
       taskId: createdTask.id,
       productId: parsed.data.productId,
-      price: parsed.data.price,
+      price: priceNum,
       commission,
       level: member.level,
     }),

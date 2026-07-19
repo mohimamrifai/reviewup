@@ -33,6 +33,10 @@ export async function signIn(
   }
 
   const supabase = await createClient();
+  // Drop sesi lama dulu agar tidak bentrok dengan tab lain
+  // (cookie Supabase di-share across tabs pada domain yang sama).
+  await supabase.auth.signOut();
+
   const { error } = await supabase.auth.signInWithPassword({
     email: syntheticEmail(parsed.data.username),
     password: parsed.data.password,
@@ -72,6 +76,9 @@ export async function adminSignIn(
   }
 
   const supabase = await createClient();
+  // Drop sesi lama dulu agar tidak bentrok dengan tab lain.
+  await supabase.auth.signOut();
+
   const { error } = await supabase.auth.signInWithPassword({
     email: syntheticEmail(parsed.data.username),
     password: parsed.data.password,
@@ -180,6 +187,10 @@ export async function signUp(
 
   const supabase = await createClient();
   const admin = createAdminClient();
+  // Drop sesi lama dulu agar tidak bentrok dengan tab lain.
+  // (signOut di sini jalan di server action, bukan server component, jadi
+  // cookie writable dan setAll() berhasil menghapus cookie lama.)
+  await supabase.auth.signOut();
 
   // 1. Create user via admin client with email_confirm: true
   //    → trigger handle_new_user() otomatis insert ke public.profiles
