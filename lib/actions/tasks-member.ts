@@ -108,16 +108,15 @@ export async function requestTask(
 /**
  * Member submit tugas: 'dipilih' -> 'dikerjakan'.
  *
- * Alur pada step ini:
+ * Alur pada step ini (model "deposit + komisi"):
  * - Cek saldo member cukup untuk harga produk.
- * - Potong `price` dari `balance` (uang jajan pesanan).
- * - Kredit `commission × level multiplier` ke `frozen_balance` (komisi
- *   yang akan pindah ke balance setelah admin konfirmasi selesai).
+ * - Pindahkan `price` dari `balance` ke `frozen_balance` (deposit
+ *   yang akan dikembalikan saat tugas dikonfirmasi selesai/dibatalkan).
+ * - Komisi belum dipindahkan di sini; tetap tersimpan di kolom
+ *   `task.commission` dan akan dikredit saat admin konfirmasi
+ *   (lihat `updateTaskStatus` di tasks-admin.ts).
  * - Jika saldo kurang, tidak ada mutasi; return `need` agar UI bisa
  *   arahkan member ke halaman deposit.
- *
- * Saldo yang sudah dipotong akan dikembalikan ke `balance` jika admin
- * membatalkan tugas (lihat `updateTaskStatus` di tasks-admin.ts).
  */
 export async function submitTask(
   _prev: TaskRequestState,

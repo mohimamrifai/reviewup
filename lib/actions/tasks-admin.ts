@@ -190,8 +190,9 @@ export async function updateTaskStatus(
 
   if (justCancelledFromDikerjakan) {
     // Tugas 'dikerjakan' -> 'dibatalkan':
-    // - komisi hangus (kurangi frozen_balance)
-    // - kembalikan harga yang sudah dipotong saat member mulai kerjakan
+    // - Kembalikan harga yang dideposit saat member mulai kerjakan
+    //   (saldo beku dilepas seluruhnya, balance ditambah harga).
+    // - Tidak ada komisi yang diberikan.
     const frz = await db.execute<{
       member_id: string;
       level: Level;
@@ -219,7 +220,7 @@ export async function updateTaskStatus(
         ),
         upd_frz AS (
           UPDATE profiles
-          SET frozen_balance = GREATEST(frozen_balance - (SELECT final_amount FROM fin), 0),
+          SET frozen_balance = GREATEST(frozen_balance - ${row.price}::numeric, 0),
               balance = balance + ${row.price}::numeric,
               updated_at = now()
           WHERE id = (SELECT member_id FROM fin)
@@ -240,10 +241,10 @@ export async function updateTaskStatus(
       actorId,
       targetId: f.member_id,
       action: "task_rejected",
-      amount: f.final_amount,
+      amount: row.price,
       note: notes
-        ? `Tugas #${taskId} ditolak: ${notes}. Saldo Rp ${refundAmount.toLocaleString("id-ID")} dikembalikan.`
-        : `Tugas #${taskId} ditolak. Komisi hangus, saldo Rp ${refundAmount.toLocaleString("id-ID")} dikembalikan.`,
+        ? `Tugas #${taskId} ditolak: ${notes}. Saldo beku Rp ${refundAmount.toLocaleString("id-ID")} dikembalikan ke saldo utama.`
+        : `Tugas #${taskId} ditolak. Saldo beku Rp ${refundAmount.toLocaleString("id-ID")} dikembalikan ke saldo utama.`,
       metadata: JSON.stringify({
         taskId,
         from: "dikerjakan",
@@ -262,9 +263,13 @@ export async function updateTaskStatus(
     };
   }
 
-  // 2. Transisi 'selesai':
-  //    - Jika dari 'dikerjakan': komisi sudah ada di frozen_balance, geser ke balance.
-  //    - Jika dari status lain (mis. 'dipilih'): tambahkan komisi langsung ke balance.
+  // 2. Transisi 'selesai' (model deposit + komisi):
+  //    - Harga produk (price) yang dideposit saat submit dikembalikan ke balance.
+  //    - Komisi (commission × level multiplier) ditambahkan ke balance.
+  //    - Saldo beku dikurangi sebesar harga produk (hilang saat tugas dikonfirmasi).
+  //    - Jika dari status lain (mis. 'dipilih' langsung ke 'selesai', tanpa
+  //      lewat 'dikerjakan'): tidak ada saldo beku yang dilepas, cukup kredit
+  //      komisi saja ke balance.
   const result = await db.execute<{
     member_id: string;
     level: Level;
@@ -313,10 +318,17 @@ export async function updateTaskStatus(
       ),
       credit AS (
         UPDATE profiles
-        SET balance = balance + (SELECT final_amount FROM fin),
+        -- Model "deposit + komisi":
+        --   - Harga produk (price) selalu dikembalikan ke balance.
+        --   - Komisi (final_amount) ditambahkan di atasnya.
+        --   - Saldo beku dikurangi sebesar harga produk.
+        -- Alur contoh: saldo awal Rp 30.000, harga Rp 25.000, komisi Rp 5.000
+        --   - submit   → balance 5.000,  frozen 25.000
+        --   - selesai  → balance 35.000, frozen 0
+        SET balance = balance + (SELECT final_amount FROM fin) + ${row.price}::numeric,
             frozen_balance = CASE
               WHEN ${row.prev_status}::text = 'dikerjakan'
-              THEN GREATEST(frozen_balance - (SELECT final_amount FROM fin), 0)
+              THEN GREATEST(frozen_balance - ${row.price}::numeric, 0)
               ELSE frozen_balance
             END,
             level = COALESCE((SELECT lvl FROM new_lvl), profiles.level),
@@ -341,19 +353,22 @@ export async function updateTaskStatus(
 
   // 3. Audit log
   const fromFrozen = row.prev_status === "dikerjakan";
+  const refundAmount = Number(row.price);
+  const commissionAmount = Number(r.final_amount);
   await db.insert(auditLogs).values({
     actorId: actorId,
     targetId: r.member_id,
     action: "task_completed",
     amount: r.final_amount,
     note: fromFrozen
-      ? `Tugas #${taskId} selesai. Komisi dipindahkan dari saldo beku ke saldo utama.`
+      ? `Tugas #${taskId} selesai. Saldo beku Rp ${refundAmount.toLocaleString("id-ID")} dikembalikan, komisi Rp ${commissionAmount.toLocaleString("id-ID")} ditambahkan.`
       : `Tugas #${taskId} selesai.`,
     metadata: JSON.stringify({
       taskId,
       from: row.prev_status,
       to: "selesai",
       finalAmount: r.final_amount,
+      refundedPrice: row.price,
       fromFrozen,
       completedCount: r.completed_count,
       newLevel: r.level,
@@ -367,8 +382,8 @@ export async function updateTaskStatus(
   return {
     success: true,
     message: fromFrozen
-      ? `Tugas #${taskId} disetujui. Saldo beku dipindahkan ke saldo. Level: ${r.level}.`
-      : `Tugas #${taskId} selesai. Komisi Rp ${Number(r.final_amount).toLocaleString("id-ID")} dikredit. Level: ${r.level} (${r.completed_count} tugas).`,
+      ? `Tugas #${taskId} disetujui. Saldo beku Rp ${refundAmount.toLocaleString("id-ID")} dikembalikan, komisi Rp ${commissionAmount.toLocaleString("id-ID")} ditambahkan. Level: ${r.level}.`
+      : `Tugas #${taskId} selesai. Komisi Rp ${commissionAmount.toLocaleString("id-ID")} dikredit. Level: ${r.level} (${r.completed_count} tugas).`,
   };
 }
 

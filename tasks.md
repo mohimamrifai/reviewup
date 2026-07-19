@@ -16,4 +16,12 @@
 - pada halaman /order muncul produk yang statusnya "di pilih" ( user )
 - user klik kirimkan, muncul modal rating lalu klik kirimkan ( user )
 - status berubah menjadi "dikerjakan" ( user )
-- saldo akun berkurang sesuai harga produk dan masuk saldo beku ( user )
+- saldo user akun berkurang sesuai harga produk dan masuk saldo beku ( user )
+- admin konfirmasi tugas ( admin )
+- status berubah menjadi "selesai" ( admin | user )
+- saldo user akun bertambah sesuai komisi dan hilang saldo beku ( user )
+
+
+pada contoh di website lain saldo awal adalah rp. 30.000
+kemudian user member mengerjakan tugas dengan harga produk 25000
+nah pada saat selesai, saldo bertambah menjadi 35000 karena mendapatkan komisi 5000 dan saldo beku kembali menjadi rp. 0
