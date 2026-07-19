@@ -196,7 +196,6 @@ const balanceSchema = z.object({
   amount: z.coerce
     .number({ message: "Nominal wajib diisi." })
     .refine((n) => n !== 0, "Nominal tidak boleh nol."),
-  note: z.string().trim().min(3, "Catatan minimal 3 karakter.").max(500),
 });
 
 export async function adjustMemberBalance(
@@ -213,7 +212,6 @@ export async function adjustMemberBalance(
   const parsed = balanceSchema.safeParse({
     memberId: formData.get("memberId"),
     amount: formData.get("amount"),
-    note: formData.get("note"),
   });
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors };
@@ -247,7 +245,7 @@ export async function adjustMemberBalance(
     targetId: parsed.data.memberId,
     action: "adjust_balance",
     amount: amountStr,
-    note: `${op === "+" ? "Penambahan" : "Pengurangan"} saldo: ${parsed.data.note}`,
+    note: `${op === "+" ? "Penambahan" : "Pengurangan"} saldo oleh admin.`,
     metadata: JSON.stringify({ delta: parsed.data.amount, newBalance: result[0].balance }),
   });
 
@@ -366,16 +364,20 @@ export async function resetMemberWithdrawPassword(
   return { success: true, message: "Kata sandi penarikan berhasil direset." };
 }
 
-// 6. Toggle status penarikan (lock/unlock via status 'banned' sementara withdraw)
-// Untuk sekarang gunakan field status 'banned' sebagai flag blokir penarikan.
-const setStatusSchema = z.object({
+// 6. Set status penarikan (lock/unlock + alasan penguncian)
+const setWithdrawLockSchema = z.object({
   memberId: z.string().uuid("ID anggota tidak valid."),
-  status: z.enum(["online", "offline", "banned"], {
-    message: "Status tidak valid.",
-  }),
+  lock: z.enum(["true", "false"]).transform((v) => v === "true"),
+  reason: z
+    .string()
+    .trim()
+    .min(3, "Alasan minimal 3 karakter.")
+    .max(500, "Alasan terlalu panjang (maks 500 karakter).")
+    .optional()
+    .or(z.literal("")),
 });
 
-export async function setMemberStatus(
+export async function setMemberWithdrawLock(
   _prev: MemberToolState,
   formData: FormData,
 ): Promise<MemberToolState> {
@@ -386,12 +388,18 @@ export async function setMemberStatus(
     return handleAuthError(e);
   }
 
-  const parsed = setStatusSchema.safeParse({
+  const parsed = setWithdrawLockSchema.safeParse({
     memberId: formData.get("memberId"),
-    status: formData.get("status"),
+    lock: formData.get("lock"),
+    reason: formData.get("reason") ?? "",
   });
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  // Alasan wajib saat mengunci penarikan
+  if (parsed.data.lock && (!parsed.data.reason || parsed.data.reason.length < 3)) {
+    return { fieldErrors: { reason: ["Alasan penguncian wajib diisi."] } };
   }
 
   try {
@@ -400,22 +408,37 @@ export async function setMemberStatus(
     return handleAuthError(e);
   }
 
+  const newStatus = parsed.data.lock ? "banned" : "online";
   const updated = await db
     .update(profiles)
-    .set({ status: parsed.data.status, updatedAt: new Date() })
+    .set({ status: newStatus, updatedAt: new Date() })
     .where(eq(profiles.id, parsed.data.memberId))
     .returning({ id: profiles.id });
 
-  if (!updated.length) return { error: "Anggota tidak ditemukan." };
+  if (!updated.length) return { error: "Gagal memperbarui status penarikan." };
+
+  const actionType = parsed.data.lock ? "withdraw_locked" : "withdraw_unlocked";
+  const noteText = parsed.data.lock
+    ? `Penarikan diblokir. Alasan: ${parsed.data.reason}`
+    : "Penarikan dibuka kembali oleh admin.";
 
   await db.insert(auditLogs).values({
     actorId: adminId,
     targetId: parsed.data.memberId,
-    action: "set_status",
-    note: `Status diubah ke ${parsed.data.status}`,
-    metadata: JSON.stringify({ newStatus: parsed.data.status }),
+    action: actionType,
+    note: noteText,
+    metadata: JSON.stringify({
+      lock: parsed.data.lock,
+      reason: parsed.data.reason ?? null,
+    }),
   });
 
   revalidatePath("/admin/users");
-  return { success: true, message: "Status anggota berhasil diperbarui." };
+  revalidatePath("/profil");
+  return {
+    success: true,
+    message: parsed.data.lock
+      ? "Penarikan anggota berhasil diblokir."
+      : "Penarikan anggota berhasil dibuka.",
+  };
 }

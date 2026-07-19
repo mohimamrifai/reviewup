@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useTransition } from "react";
 import { Loader2, Lock, Pencil, Star, Unlock } from "lucide-react";
 
-import { setMemberStatus, type MemberToolState } from "@/lib/actions/member-tools";
+import { setMemberWithdrawLock, type MemberToolState } from "@/lib/actions/member-tools";
 
 import type { Member, MemberLevel } from "./members-table";
 
@@ -26,9 +26,9 @@ const LEVEL_CLASS: Record<MemberLevel, string> = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  online: "Online",
+  online: "Aktif",
   offline: "Offline",
-  banned: "Banned",
+  banned: "Diblokir",
 };
 
 const STATUS_CLASS: Record<string, string> = {
@@ -68,22 +68,39 @@ export function MemberRow({
   onEdit: () => void;
   onStatusChange: (newStatus: string) => void;
 }) {
-  const [state, action] = useActionState<MemberToolState, FormData>(setMemberStatus, {});
+  const [state, action] = useActionState<MemberToolState, FormData>(setMemberWithdrawLock, {});
   const [pending, startTransition] = useTransition();
   const isBanned = member.status === "banned";
 
   // Tutup lock-toggle otomatis setelah sukses (next click aman)
   useEffect(() => {
     if (state.success) {
-      onStatusChange(state.message?.includes("Diblokir") ? "banned" : "online");
+      onStatusChange(isBanned ? "online" : "banned");
     }
-  }, [state, onStatusChange]);
+  }, [state, isBanned, onStatusChange]);
 
-  function toggleLock() {
+  function applyLock() {
     const fd = new FormData();
     fd.set("memberId", member.id);
-    fd.set("status", isBanned ? "online" : "banned");
+    fd.set("lock", isBanned ? "false" : "true");
+    // Saat blokir dari row ini tanpa alasan, default alasan singkat
+    if (!isBanned) fd.set("reason", "Blokir cepat dari tabel anggota.");
     startTransition(() => action(fd));
+  }
+
+  function handleClick() {
+    if (isBanned) {
+      // Buka blokir: langsung proses
+      applyLock();
+    } else {
+      // Blokir: tampilkan konfirmasi dulu
+      const ok = window.confirm(
+        `Blokir penarikan untuk @${member.username}?\n\n` +
+          `Anggota tidak akan bisa melakukan penarikan saldo. ` +
+          `Tindakan akan dicatat di log audit.`,
+      );
+      if (ok) applyLock();
+    }
   }
   return (
     <tr className="group border-t border-zinc-200 transition hover:bg-zinc-50/60">
@@ -140,7 +157,7 @@ export function MemberRow({
           <button
             type="button"
             aria-label={isBanned ? `Buka blokir ${member.username}` : `Blokir ${member.username}`}
-            onClick={toggleLock}
+            onClick={handleClick}
             disabled={pending}
             className={`inline-flex items-center justify-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${
               isBanned
