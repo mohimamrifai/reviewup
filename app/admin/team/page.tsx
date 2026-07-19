@@ -16,7 +16,7 @@ export default async function AdminTeamPage() {
   if (!user) redirect("/admin/login");
 
   const [me] = await db
-    .select({ id: profiles.id, role: profiles.role })
+    .select({ id: profiles.id, role: profiles.role, username: profiles.username })
     .from(profiles)
     .where(eq(profiles.id, user.id))
     .limit(1);
@@ -110,6 +110,7 @@ export default async function AdminTeamPage() {
         leaders={leaderRows.map((l) => ({ id: l.id, username: l.username }))}
         isCurrentSuperAdmin={isSuperAdmin}
         currentLeaderId={me.id}
+        currentLeaderUsername={me.username}
       />
     </div>
   );

@@ -6,7 +6,10 @@
 - Member test: Username `rinasyah`, Password `jika123` (referral `STAFF001`, sandi penarikan `123456`)
 
 
-Ini gimana ya mas. Cara masukin staff ke leader menjadi anggota leader. Jadi di pantau leader untuk anggota dari setiap leader.
+laporan client :
+Ini saya login sebagai admin super, kenapa tidak bisa hapus admin leader dan staff yang sudah di buat ya mas.
 
-Contohnya gini. saya login adminleader pertama, lalu saya buat staff untuk jadi anggota saya. tapi saat ini tidak bertambah jadi anggota saya.
+client mengeluhkan tidak bisa menghapus akun admin leader dan staff yang sudah di buat.
 
+tolong periksa, perbaiki dan test.
+pada saat test tolong jangan otak atik data saat ini.

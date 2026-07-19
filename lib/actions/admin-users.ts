@@ -271,6 +271,25 @@ export async function createAdminUser(
     return { error: "Gagal membuat akun admin." };
   }
 
+  // Defensive write: pastikan `profiles.leader_id` ter-set untuk admin_staff.
+  // Trigger DB `handle_new_user` seharusnya menulisnya dari user_metadata,
+  // tapi kita tulis ulang di sini sebagai pengaman agar relasi leader-staff
+  // tetap konsisten walau trigger DB di DB tertinggal versi lama / gagal.
+  // Idempotent: COALESCE-style (jangan override jika sudah valid).
+  if (role === "admin_staff" && resolvedLeaderId) {
+    const [current] = await db
+      .select({ leaderId: profiles.leaderId })
+      .from(profiles)
+      .where(eq(profiles.id, createdUser.id))
+      .limit(1);
+    if (current && !current.leaderId) {
+      await db
+        .update(profiles)
+        .set({ leaderId: resolvedLeaderId, updatedAt: new Date() })
+        .where(eq(profiles.id, createdUser.id));
+    }
+  }
+
   // Tulis audit log
   await db.insert(auditLogs).values({
     actorId: actor.actorId,
@@ -677,4 +696,127 @@ export async function deleteAdminUser(
 
   revalidatePath("/admin/team");
   return { success: true, message: `Akun @${target.username} berhasil dihapus.` };
+}
+
+// ===== setStaffLeader =====
+//
+// Re-assign leader untuk staff yang sudah ada. Tujuan utama: mengaitkan
+// staff orphan (leader_id IS NULL) ke leader, atau memindahkan staff dari
+// satu leader ke leader lain (khusus super admin).
+//
+// Aturan akses:
+//  - super_admin: boleh set leader untuk admin_staff manapun
+//  - admin_leader: hanya boleh set leader untuk staff yang `leader_id` IS NULL
+//    atau yang sudah di bawahnya (assign ulang ke diri sendiri).
+//    Tidak boleh mindahin staff leader lain ke dirinya.
+const setStaffLeaderSchema = z.object({
+  staffId: z.string().uuid("ID staff tidak valid."),
+  newLeaderId: z.string().uuid("ID leader tidak valid."),
+});
+
+export async function setStaffLeader(
+  _prev: AdminUserState,
+  formData: FormData,
+): Promise<AdminUserState> {
+  let actor: Awaited<ReturnType<typeof requireTeamManager>>;
+  try {
+    actor = await requireTeamManager();
+  } catch {
+    return { error: "Anda tidak memiliki akses untuk aksi ini." };
+  }
+
+  const parsed = setStaffLeaderSchema.safeParse({
+    staffId: formData.get("staffId"),
+    newLeaderId: formData.get("newLeaderId"),
+  });
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  const { staffId, newLeaderId } = parsed.data;
+
+  // Cari target (staff) saat ini
+  const [target] = await db
+    .select({
+      id: profiles.id,
+      role: profiles.role,
+      username: profiles.username,
+      leaderId: profiles.leaderId,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, staffId))
+    .limit(1);
+  if (!target) return { error: "Staff tidak ditemukan." };
+  if (target.role !== "admin_staff") {
+    return { error: "Target bukan Admin Staff." };
+  }
+
+  // Validasi newLeaderId adalah admin_leader
+  const [newLeader] = await db
+    .select({ id: profiles.id, role: profiles.role, username: profiles.username })
+    .from(profiles)
+    .where(eq(profiles.id, newLeaderId))
+    .limit(1);
+  if (!newLeader) {
+    return { fieldErrors: { newLeaderId: ["Leader tidak ditemukan."] } };
+  }
+  if (newLeader.role !== "admin_leader") {
+    return { fieldErrors: { newLeaderId: ["User yang dipilih bukan Admin Leader."] } };
+  }
+
+  // Pembatasan hak akses per-role
+  if (actor.role === "admin_leader") {
+    // Leader hanya boleh handle staff yang:
+    //   - orphan (leader_id IS NULL), atau
+    //   - sudah di bawahnya sendiri
+    if (target.leaderId && target.leaderId !== actor.actorId) {
+      return { error: "Anda hanya dapat mengelola staff di bawah Anda atau staff yang belum memiliki leader." };
+    }
+    // Dan hanya boleh assign ke diri sendiri
+    if (newLeaderId !== actor.actorId) {
+      return { fieldErrors: { newLeaderId: ["Leader hanya dapat menetapkan diri sendiri sebagai leader."] } };
+    }
+  }
+
+  // Tidak ada perubahan yang perlu dilakukan jika leader sudah sama
+  if (target.leaderId === newLeaderId) {
+    return { success: true, message: `@${target.username} sudah berada di bawah @${newLeader.username}.`, targetId: staffId };
+  }
+
+  const oldLeaderId = target.leaderId;
+
+  // Update profile (pakai updatedAt supaya trigger_updated_at konsisten)
+  await db
+    .update(profiles)
+    .set({ leaderId: newLeaderId, updatedAt: new Date() })
+    .where(eq(profiles.id, staffId));
+
+  // Sinkronkan user_metadata di Supabase Auth supaya trigger
+  // `handle_new_user` (jika dipanggil ulang) tetap menulis leader_id
+  // yang benar. Pakai admin client (bypass RLS).
+  const admin = createAdminClient();
+  await admin.auth.admin.updateUserById(staffId, {
+    user_metadata: { leader_id: newLeaderId },
+  });
+
+  await db.insert(auditLogs).values({
+    actorId: actor.actorId,
+    targetId: staffId,
+    action: "set_staff_leader",
+    note: `Staff @${target.username} dipindahkan ke leader @${newLeader.username}.`,
+    metadata: JSON.stringify({
+      targetUsername: target.username,
+      oldLeaderId,
+      newLeaderId,
+      newLeaderUsername: newLeader.username,
+      byRole: actor.role,
+    }),
+  });
+
+  revalidatePath("/admin/team");
+  return {
+    success: true,
+    message: `Staff @${target.username} berhasil dikaitkan ke @${newLeader.username}.`,
+    targetId: staffId,
+  };
 }
