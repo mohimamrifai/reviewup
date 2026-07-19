@@ -107,17 +107,18 @@ export async function updateTaskStatus(
     }
   }
 
-  // 1. Tangkap status lama, update status, dan ambil member_id & commission
-  //    dalam satu CTE. Penting: `t` CTE membaca status sebelum UPDATE
+  // 1. Tangkap status lama, update status, dan ambil member_id, commission,
+  //    price dalam satu CTE. Penting: `t` CTE membaca status sebelum UPDATE
   //    sehingga `prev_status` benar-benar status lama.
   const updated = await db.execute<{
     id: number;
     member_id: string;
     commission: string;
+    price: string;
     prev_status: string;
   }>(sql`
     WITH t AS (
-      SELECT id, member_id, commission, status AS prev_status
+      SELECT id, member_id, commission, price, status AS prev_status
       FROM tasks
       WHERE id = ${taskId}
         ${isAdmin ? sql`` : sql`AND member_id = ${actorId} AND status = 'dipilih'::task_status`}
@@ -188,7 +189,9 @@ export async function updateTaskStatus(
   }
 
   if (justCancelledFromDikerjakan) {
-    // Tugas 'dikerjakan' -> 'dibatalkan': komisi hangus, kurangi frozen_balance.
+    // Tugas 'dikerjakan' -> 'dibatalkan':
+    // - komisi hangus (kurangi frozen_balance)
+    // - kembalikan harga yang sudah dipotong saat member mulai kerjakan
     const frz = await db.execute<{
       member_id: string;
       level: Level;
@@ -217,6 +220,7 @@ export async function updateTaskStatus(
         upd_frz AS (
           UPDATE profiles
           SET frozen_balance = GREATEST(frozen_balance - (SELECT final_amount FROM fin), 0),
+              balance = balance + ${row.price}::numeric,
               updated_at = now()
           WHERE id = (SELECT member_id FROM fin)
           RETURNING id, level
@@ -228,29 +232,34 @@ export async function updateTaskStatus(
       FROM upd_frz
     `);
 
-    if (frz.length === 0) return { error: "Gagal mengurangi saldo beku." };
+    if (frz.length === 0) return { error: "Gagal mengembalikan saldo." };
     const f = frz[0];
 
+    const refundAmount = Number(row.price);
     await db.insert(auditLogs).values({
       actorId,
       targetId: f.member_id,
       action: "task_rejected",
       amount: f.final_amount,
       note: notes
-        ? `Tugas #${taskId} ditolak: ${notes}`
-        : `Tugas #${taskId} ditolak. Komisi hangus.`,
+        ? `Tugas #${taskId} ditolak: ${notes}. Saldo Rp ${refundAmount.toLocaleString("id-ID")} dikembalikan.`
+        : `Tugas #${taskId} ditolak. Komisi hangus, saldo Rp ${refundAmount.toLocaleString("id-ID")} dikembalikan.`,
       metadata: JSON.stringify({
         taskId,
         from: "dikerjakan",
         to: "dibatalkan",
         finalAmount: f.final_amount,
+        refundedPrice: row.price,
       }),
     });
     revalidatePath("/admin/task");
     revalidatePath("/admin/users");
     revalidatePath("/order");
     revalidatePath("/profil");
-    return { success: true, message: `Tugas #${taskId} ditolak. Komisi hangus.` };
+    return {
+      success: true,
+      message: `Tugas #${taskId} ditolak. Saldo Rp ${refundAmount.toLocaleString("id-ID")} dikembalikan ke member.`,
+    };
   }
 
   // 2. Transisi 'selesai':

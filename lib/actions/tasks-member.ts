@@ -14,6 +14,7 @@ export type TaskRequestState = {
   success?: boolean;
   message?: string;
   taskId?: number;
+  need?: number;
 };
 
 const ACTIVE_TASK_STATUSES = ["dipilih", "dikerjakan"] as const;
@@ -107,8 +108,17 @@ export async function requestTask(
 
 /**
  * Member submit tugas: 'dipilih' -> 'dikerjakan'.
- * Komisi (level multiplier) langsung masuk ke frozen_balance (saldo beku)
- * dan menunggu persetujuan admin sebelum berpindah ke balance.
+ *
+ * Alur pada step ini:
+ * - Cek saldo member cukup untuk harga produk.
+ * - Potong `price` dari `balance` (uang jajan pesanan).
+ * - Kredit `commission × level multiplier` ke `frozen_balance` (komisi
+ *   yang akan pindah ke balance setelah admin konfirmasi selesai).
+ * - Jika saldo kurang, tidak ada mutasi; return `need` agar UI bisa
+ *   arahkan member ke halaman deposit.
+ *
+ * Saldo yang sudah dipotong akan dikembalikan ke `balance` jika admin
+ * membatalkan tugas (lihat `updateTaskStatus` di tasks-admin.ts).
  */
 export async function submitTask(
   _prev: TaskRequestState,
@@ -124,15 +134,19 @@ export async function submitTask(
     return { error: "ID tugas tidak valid." };
   }
 
-  // 1. Update status 'dipilih' -> 'dikerjakan' (hanya untuk tugas milik member ini),
-  //    dan sekaligus kredit frozen_balance dengan commission × level multiplier.
+  // 1. Validasi task + harga + saldo member, lalu potong saldo & update
+  //    status dalam satu CTE. Kalau saldo kurang, tidak ada mutasi yang
+  //    terjadi — `shortfall` akan > 0 di hasil.
   const result = await db.execute<{
     member_id: string;
     level: Level;
     final_amount: string;
+    price: string;
+    current_balance: string;
+    shortfall: string;
   }>(sql`
     WITH t AS (
-      SELECT id, member_id, commission
+      SELECT id, member_id, price, commission
       FROM tasks
       WHERE id = ${taskId}
         AND member_id = ${ctx.userId}
@@ -140,7 +154,7 @@ export async function submitTask(
       FOR UPDATE
     ),
     m AS (
-      SELECT id, level
+      SELECT id, level, balance
       FROM profiles
       WHERE id = (SELECT member_id FROM t)
       FOR UPDATE
@@ -149,6 +163,9 @@ export async function submitTask(
       SELECT
         t.id AS task_id,
         t.member_id,
+        t.price::numeric AS task_price,
+        m.balance::numeric AS current_balance,
+        m.level,
         (t.commission::numeric * CASE m.level
           WHEN 'classic' THEN 1.0
           WHEN 'silver' THEN 1.25
@@ -156,7 +173,8 @@ export async function submitTask(
           WHEN 'platinum' THEN 1.75
           WHEN 'diamond' THEN 2.0
           WHEN 'premier' THEN 2.5
-        END) AS final_amount
+        END) AS final_amount,
+        GREATEST(t.price::numeric - m.balance::numeric, 0)::numeric AS shortfall
       FROM t, m
     ),
     upd AS (
@@ -164,20 +182,32 @@ export async function submitTask(
       SET status = 'dikerjakan'::task_status,
           updated_at = now()
       WHERE id = (SELECT task_id FROM fin)
-      RETURNING id, member_id
+        AND (SELECT shortfall FROM fin) = 0
+      RETURNING id
+    ),
+    debit AS (
+      UPDATE profiles
+      SET balance = balance - (SELECT task_price FROM fin),
+          updated_at = now()
+      WHERE id = (SELECT member_id FROM fin)
+        AND (SELECT shortfall FROM fin) = 0
+      RETURNING id
     ),
     frz AS (
       UPDATE profiles
       SET frozen_balance = frozen_balance + (SELECT final_amount FROM fin),
           updated_at = now()
       WHERE id = (SELECT member_id FROM fin)
-      RETURNING id, level, frozen_balance
+        AND (SELECT shortfall FROM fin) = 0
+      RETURNING id
     )
     SELECT
-      frz.id AS member_id,
-      frz.level,
-      (SELECT final_amount FROM fin)::text AS final_amount
-    FROM frz
+      (SELECT member_id FROM fin) AS member_id,
+      (SELECT level FROM m) AS level,
+      COALESCE((SELECT final_amount FROM fin), 0)::text AS final_amount,
+      COALESCE((SELECT task_price FROM fin), 0)::text AS price,
+      COALESCE((SELECT current_balance FROM fin), 0)::text AS current_balance,
+      COALESCE((SELECT shortfall FROM fin), 0)::text AS shortfall
   `);
 
   if (result.length === 0) {
@@ -187,6 +217,15 @@ export async function submitTask(
   }
 
   const row = result[0];
+  const shortfall = Number(row.shortfall);
+
+  // Saldo tidak cukup → return info shortfall, tidak ada mutasi.
+  if (shortfall > 0) {
+    return {
+      error: `Saldo tidak cukup. Kurang Rp ${shortfall.toLocaleString("id-ID")} untuk mengerjakan tugas ini.`,
+      need: shortfall,
+    };
+  }
 
   // 2. Audit log
   const noteSuffix =
@@ -196,9 +235,10 @@ export async function submitTask(
     targetId: row.member_id,
     action: "task_submitted",
     amount: row.final_amount,
-    note: `Tugas #${taskId} dikirim (status: dikerjakan, masuk saldo beku).${noteSuffix}`,
+    note: `Tugas #${taskId} dimulai. Harga Rp ${Number(row.price).toLocaleString("id-ID")} dipotong dari saldo, komisi masuk saldo beku.${noteSuffix}`,
     metadata: JSON.stringify({
       taskId,
+      price: row.price,
       finalAmount: row.final_amount,
       rating: rating && rating >= 1 && rating <= 5 ? rating : null,
     }),
@@ -210,7 +250,7 @@ export async function submitTask(
   revalidatePath("/profil");
   return {
     success: true,
-    message: "Tugas berhasil dikirim. Mohon tunggu verifikasi admin.",
+    message: "Tugas berhasil dimulai. Mohon tunggu verifikasi admin.",
     taskId,
   };
 }
