@@ -680,7 +680,9 @@ export async function deleteAdminUser(
   const { error: delErr } = await admin.auth.admin.deleteUser(adminId);
   if (delErr) {
     console.error("[deleteAdminUser] deleteUser error:", delErr);
-    return { error: "Gagal menghapus akun admin." };
+    return {
+      error: `Gagal menghapus akun: ${delErr.message ?? "kesalahan tidak diketahui"}. Hubungi developer jika masalah berlanjut.`,
+    };
   }
 
   // Defensive: hapus profile kalau masih ada (biasanya sudah ke-cascade)
