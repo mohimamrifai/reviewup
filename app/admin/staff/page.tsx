@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import { db } from "@/lib/db";
@@ -6,8 +6,53 @@ import { deposits, profiles, withdrawals } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
 
 import { StaffsTable } from "./_components/staffs-table";
+import { StaffDateRange } from "./_components/staff-date-range";
 
-export default async function AdminStaffsPage() {
+// Format tanggal local ISO (YYYY-MM-DD) untuk filter created_at.
+function toLocalISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function getThisMonthRange(): {
+  fromDate: Date;
+  toDate: Date;
+  from: string;
+  to: string;
+} {
+  const now = new Date();
+  const fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  return {
+    fromDate,
+    toDate: now,
+    from: toLocalISODate(fromDate),
+    to: toLocalISODate(now),
+  };
+}
+
+function parseISODate(value: string, endOfDay = false): Date | null {
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (endOfDay) d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function formatDateID(d: Date): string {
+  return d.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+export default async function AdminStaffsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -27,7 +72,19 @@ export default async function AdminStaffsPage() {
 
   const isSuperAdmin = me.role === "super_admin";
 
-  // Tentukan scope staff:
+  // 1. Tentukan rentang tanggal. Default = bulan ini.
+  const params = await searchParams;
+  const thisMonth = getThisMonthRange();
+  let fromDate: Date | null = parseISODate(params.from ?? thisMonth.from);
+  let toDate: Date | null = parseISODate(params.to ?? thisMonth.to, true);
+  if (!fromDate) fromDate = thisMonth.fromDate;
+  if (!toDate) toDate = thisMonth.toDate;
+  if (fromDate > toDate) {
+    fromDate = thisMonth.fromDate;
+    toDate = thisMonth.toDate;
+  }
+
+  // 2. Tentukan scope staff:
   //  - super admin: semua staff
   //  - leader: staff dengan leader_id = leader.id
   const staffWhere = isSuperAdmin
@@ -49,7 +106,9 @@ export default async function AdminStaffsPage() {
 
   const staffIds = staffRows.map((s) => s.id);
 
-  // Aggregate per staff: jumlah member, total deposit approved, total withdrawal completed
+  // 3. Aggregate per staff dalam rentang tanggal yang dipilih.
+  //    Total deposit & penarikan dihitung dari member yang referred oleh
+  //    staff, dengan `created_at` di antara [fromDate, toDate].
   let statsByStaff = new Map<
     string,
     { memberCount: number; totalDeposit: string; totalWithdrawal: string }
@@ -64,7 +123,7 @@ export default async function AdminStaffsPage() {
   }
 
   if (staffIds.length > 0) {
-    // Member count
+    // Member count (tetap lifetime, bukan per-periode)
     const memberAgg = await db
       .select({
         staffId: profiles.referredBy,
@@ -85,7 +144,7 @@ export default async function AdminStaffsPage() {
       if (cur) cur.memberCount = Number(r.total);
     }
 
-    // Deposit approved per staff
+    // Deposit approved per staff, filtered by date range
     const depAgg = await db
       .select({
         staffId: profiles.referredBy,
@@ -97,6 +156,8 @@ export default async function AdminStaffsPage() {
         and(
           inArray(profiles.referredBy, staffIds),
           eq(deposits.status, "approved"),
+          gte(deposits.createdAt, fromDate),
+          lte(deposits.createdAt, toDate),
         ),
       )
       .groupBy(profiles.referredBy);
@@ -107,7 +168,7 @@ export default async function AdminStaffsPage() {
       if (cur) cur.totalDeposit = r.total;
     }
 
-    // Withdrawal completed per staff
+    // Withdrawal completed per staff, filtered by date range
     const wdAgg = await db
       .select({
         staffId: profiles.referredBy,
@@ -119,6 +180,8 @@ export default async function AdminStaffsPage() {
         and(
           inArray(profiles.referredBy, staffIds),
           eq(withdrawals.status, "completed"),
+          gte(withdrawals.createdAt, fromDate),
+          lte(withdrawals.createdAt, toDate),
         ),
       )
       .groupBy(profiles.referredBy);
@@ -143,6 +206,8 @@ export default async function AdminStaffsPage() {
     for (const l of leaderRows) leaderNameById.set(l.id, l.username);
   }
 
+  const periodLabel = `${formatDateID(fromDate)} – ${formatDateID(toDate)}`;
+
   return (
     <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
       <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 sm:p-5">
@@ -155,6 +220,8 @@ export default async function AdminStaffsPage() {
             : "Daftar staff di bawah Anda beserta ringkasan pencapaian anggota mereka. Klik username untuk melihat detail per bulan."}
         </p>
       </div>
+
+      <StaffDateRange />
 
       <StaffsTable
         initialStaffs={staffRows.map((r) => {
@@ -173,6 +240,7 @@ export default async function AdminStaffsPage() {
               : null,
           };
         })}
+        periodLabel={periodLabel}
       />
     </div>
   );

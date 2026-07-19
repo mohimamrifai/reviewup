@@ -135,9 +135,10 @@ export async function changeWithdrawPassword(
     return { error: "Sesi habis, silakan login ulang." };
   }
 
-  // Verifikasi sandi penarikan lama
+  // Verifikasi sandi penarikan lama (bcrypt crypt — hash tidak bisa
+  // dibandingkan langsung dengan plaintext, harus lewat `crypt()`).
   const [verify] = await db.execute<{ ok: boolean }>(sql`
-    SELECT (${parsed.data.currentPassword} = withdraw_password_hash) AS ok
+    SELECT (withdraw_password_hash = crypt(${parsed.data.currentPassword}, withdraw_password_hash)) AS ok
     FROM profiles WHERE id = ${user.id}
   `);
   if (!verify?.ok) {

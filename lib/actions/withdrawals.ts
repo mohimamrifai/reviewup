@@ -78,9 +78,12 @@ export async function submitWithdrawal(
     return { error: "Akun Anda diblokir. Hubungi staff terkait untuk konfirmasi." };
   }
 
-  // Verifikasi sandi penarikan via DB (bcrypt crypt)
+  // Verifikasi sandi penarikan via DB (bcrypt crypt).
+  // PENTING: `withdraw_password_hash` adalah bcrypt hash, jadi tidak bisa
+  // dibandingkan langsung dengan plaintext — harus lewat `crypt()` agar
+  // plaintext di-hash dengan salt yang sama, lalu dibandingkan.
   const [verify] = await db.execute<{ ok: boolean }>(sql`
-    SELECT (${parsed.data.withdrawPassword} = withdraw_password_hash) AS ok
+    SELECT (withdraw_password_hash = crypt(${parsed.data.withdrawPassword}, withdraw_password_hash)) AS ok
     FROM profiles WHERE id = ${user.id}
   `);
   if (!verify?.ok) {

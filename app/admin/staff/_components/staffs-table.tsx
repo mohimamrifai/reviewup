@@ -38,7 +38,13 @@ function formatDate(iso: string): string {
   }).format(new Date(iso));
 }
 
-export function StaffsTable({ initialStaffs }: { initialStaffs: Staff[] }) {
+export function StaffsTable({
+  initialStaffs,
+  periodLabel,
+}: {
+  initialStaffs: Staff[];
+  periodLabel?: string;
+}) {
   const [staffs] = useState<Staff[]>(initialStaffs);
   const [query, setQuery] = useState("");
 
@@ -81,8 +87,26 @@ export function StaffsTable({ initialStaffs }: { initialStaffs: Staff[] }) {
               <th className={headerCellClass}>Leader</th>
               <th className={headerCellClass}>Referral</th>
               <th className={headerCellClass}>Jml. Member</th>
-              <th className={headerCellClass}>Total Deposit</th>
-              <th className={headerCellClass}>Total Penarikan</th>
+              <th className={headerCellClass}>
+                <div className="flex flex-col">
+                  <span>Total Deposit</span>
+                  {periodLabel && (
+                    <span className="text-[9px] font-normal normal-case tracking-normal text-zinc-500 sm:text-[10px]">
+                      {periodLabel}
+                    </span>
+                  )}
+                </div>
+              </th>
+              <th className={headerCellClass}>
+                <div className="flex flex-col">
+                  <span>Total Penarikan</span>
+                  {periodLabel && (
+                    <span className="text-[9px] font-normal normal-case tracking-normal text-zinc-500 sm:text-[10px]">
+                      {periodLabel}
+                    </span>
+                  )}
+                </div>
+              </th>
               <th className={headerCellClass}>Status</th>
               <th className={headerCellClass}>Detail</th>
             </tr>
