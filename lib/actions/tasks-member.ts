@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 
 import { db } from "@/lib/db";
 import { auditLogs, profiles, taskRequests, tasks } from "@/lib/db/schema";
-import { type Level } from "@/lib/levels";
 import { createClient } from "@/lib/supabase/server";
 
 export type TaskRequestState = {
@@ -134,92 +133,50 @@ export async function submitTask(
     return { error: "ID tugas tidak valid." };
   }
 
-  // 1. Validasi task + harga + saldo member, lalu potong saldo & update
-  //    status dalam satu CTE. Kalau saldo kurang, tidak ada mutasi yang
-  //    terjadi — `shortfall` akan > 0 di hasil.
-  const result = await db.execute<{
-    member_id: string;
-    level: Level;
-    final_amount: string;
-    price: string;
-    current_balance: string;
-    shortfall: string;
-  }>(sql`
-    WITH t AS (
-      SELECT id, member_id, price, commission
-      FROM tasks
-      WHERE id = ${taskId}
-        AND member_id = ${ctx.userId}
-        AND status = 'dipilih'::task_status
-      FOR UPDATE
-    ),
-    m AS (
-      SELECT id, level, balance
-      FROM profiles
-      WHERE id = (SELECT member_id FROM t)
-      FOR UPDATE
-    ),
-    fin AS (
-      SELECT
-        t.id AS task_id,
-        t.member_id,
-        t.price::numeric AS task_price,
-        m.balance::numeric AS current_balance,
-        m.level,
-        (t.commission::numeric * CASE m.level
-          WHEN 'classic' THEN 1.0
-          WHEN 'silver' THEN 1.25
-          WHEN 'gold' THEN 1.5
-          WHEN 'platinum' THEN 1.75
-          WHEN 'diamond' THEN 2.0
-          WHEN 'premier' THEN 2.5
-        END) AS final_amount,
-        GREATEST(t.price::numeric - m.balance::numeric, 0)::numeric AS shortfall
-      FROM t, m
-    ),
-    upd AS (
-      UPDATE tasks
-      SET status = 'dikerjakan'::task_status,
-          updated_at = now()
-      WHERE id = (SELECT task_id FROM fin)
-        AND (SELECT shortfall FROM fin) = 0
-      RETURNING id
-    ),
-    debit AS (
-      UPDATE profiles
-      SET balance = balance - (SELECT task_price FROM fin),
-          updated_at = now()
-      WHERE id = (SELECT member_id FROM fin)
-        AND (SELECT shortfall FROM fin) = 0
-      RETURNING id
-    ),
-    frz AS (
-      UPDATE profiles
-      SET frozen_balance = frozen_balance + (SELECT final_amount FROM fin),
-          updated_at = now()
-      WHERE id = (SELECT member_id FROM fin)
-        AND (SELECT shortfall FROM fin) = 0
-      RETURNING id
+  // 1. Validasi task: harus milik member ini dan berstatus 'dipilih'.
+  //    Kunci baris dengan FOR UPDATE supaya tidak ada race saat submit bersamaan.
+  const [task] = await db
+    .select({
+      id: tasks.id,
+      memberId: tasks.memberId,
+      price: tasks.price,
+      commission: tasks.commission,
+      status: tasks.status,
+    })
+    .from(tasks)
+    .where(
+      sql`${tasks.id} = ${taskId} AND ${tasks.memberId} = ${ctx.userId} AND ${tasks.status} = 'dipilih'::task_status`,
     )
-    SELECT
-      (SELECT member_id FROM fin) AS member_id,
-      (SELECT level FROM m) AS level,
-      COALESCE((SELECT final_amount FROM fin), 0)::text AS final_amount,
-      COALESCE((SELECT task_price FROM fin), 0)::text AS price,
-      COALESCE((SELECT current_balance FROM fin), 0)::text AS current_balance,
-      COALESCE((SELECT shortfall FROM fin), 0)::text AS shortfall
-  `);
+    .for("update")
+    .limit(1);
 
-  if (result.length === 0) {
+  if (!task) {
     return {
       error: "Tugas tidak ditemukan, bukan milik Anda, atau belum dipilih admin.",
     };
   }
 
-  const row = result[0];
-  const shortfall = Number(row.shortfall);
+  // 2. Ambil data member (level + balance) dengan FOR UPDATE.
+  const [member] = await db
+    .select({
+      id: profiles.id,
+      level: profiles.level,
+      balance: profiles.balance,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, task.memberId))
+    .for("update")
+    .limit(1);
 
-  // Saldo tidak cukup → return info shortfall, tidak ada mutasi.
+  if (!member) {
+    return { error: "Profil member tidak ditemukan." };
+  }
+
+  const priceNum = Number(task.price);
+  const balanceNum = Number(member.balance);
+  const shortfall = Math.max(priceNum - balanceNum, 0);
+
+  // 3. Saldo kurang → tidak ada mutasi, return info shortfall.
   if (shortfall > 0) {
     return {
       error: `Saldo tidak cukup. Kurang Rp ${shortfall.toLocaleString("id-ID")} untuk mengerjakan tugas ini.`,
@@ -227,19 +184,46 @@ export async function submitTask(
     };
   }
 
-  // 2. Audit log
+  // 4. Potong balance, pindahkan ke frozen_balance, dan update status
+  //    dalam satu transaction atomic.
+  //    Saldo beku = seluruh harga produk (price), bukan komisi.
+  //    Komisi tetap tersimpan di `task.commission` untuk dicairkan admin
+  //    nanti saat tugas dikonfirmasi selesai.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(profiles)
+      .set({
+        balance: sql`${profiles.balance} - ${priceNum}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(profiles.id, member.id));
+
+    await tx
+      .update(profiles)
+      .set({
+        frozenBalance: sql`${profiles.frozenBalance} + ${priceNum}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(profiles.id, member.id));
+
+    await tx
+      .update(tasks)
+      .set({ status: "dikerjakan", updatedAt: new Date() })
+      .where(eq(tasks.id, task.id));
+  });
+
+  // 5. Audit log
   const noteSuffix =
     rating && rating >= 1 && rating <= 5 ? ` Rating: ${rating}/5` : "";
   await db.insert(auditLogs).values({
     actorId: ctx.userId,
-    targetId: row.member_id,
+    targetId: member.id,
     action: "task_submitted",
-    amount: row.final_amount,
-    note: `Tugas #${taskId} dimulai. Harga Rp ${Number(row.price).toLocaleString("id-ID")} dipotong dari saldo, komisi masuk saldo beku.${noteSuffix}`,
+    amount: priceNum.toFixed(2),
+    note: `Tugas #${taskId} dimulai. Saldo Rp ${priceNum.toLocaleString("id-ID")} dipindahkan ke saldo beku.${noteSuffix}`,
     metadata: JSON.stringify({
       taskId,
-      price: row.price,
-      finalAmount: row.final_amount,
+      price: priceNum,
       rating: rating && rating >= 1 && rating <= 5 ? rating : null,
     }),
   });

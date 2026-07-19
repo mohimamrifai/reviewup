@@ -6,3 +6,14 @@
 - Member test: Username `rinasyah`, Password `jika123` (referral `STAFF001`, sandi penarikan `123456`)
 
 
+- Register akun OK
+- halaman /task ( user )
+- klik mulai tugas ( user )
+- di arahkan ke halaman /order ( user )
+- menunggu : "mohon menunggu... sistem sedang menetapkan produk" ( user)
+- pada tabel admin muncul request status menunggu ( admin )
+- admin pilih produk, status berubah menjadi "di pilih" ( admin )
+- pada halaman /order muncul produk yang statusnya "di pilih" ( user )
+- user klik kirimkan, muncul modal rating lalu klik kirimkan ( user )
+- status berubah menjadi "dikerjakan" ( user )
+- saldo akun berkurang sesuai harga produk dan masuk saldo beku ( user )
