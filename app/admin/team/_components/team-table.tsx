@@ -1,19 +1,33 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
-import { Copy, Eye, EyeOff, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import {
+  Copy,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import {
   createAdminUser,
   deleteAdminUser,
+  resetAdminPassword,
   updateAdminUser,
   type AdminUserState,
 } from "@/lib/actions/admin-users";
 
+type AdminRole = "admin_leader" | "admin_staff";
+
 type Admin = {
   id: string;
   username: string;
-  role: string;
+  role: AdminRole;
   referralCode: string | null;
   status: string;
   createdAt: string;
@@ -114,12 +128,164 @@ function LeaderSelect({
   );
 }
 
+function ResetPasswordModal({
+  admin,
+  onClose,
+  onReset,
+}: {
+  admin: Admin;
+  onClose: () => void;
+  onReset: (msg: string) => void;
+}) {
+  const [state, action] = useActionState(resetAdminPassword, initialState);
+  const [pending, startTransition] = useTransition();
+  const [showPassword, setShowPassword] = useState(true);
+
+  useEffect(() => {
+    if (state === initialState) return;
+    if (state.success) onReset(state.message ?? "Password di-reset.");
+  }, [state, onReset]);
+
+  useModalLifecycle(onClose);
+
+  function copyPassword() {
+    if (state.generatedPassword) {
+      navigator.clipboard.writeText(state.generatedPassword);
+    }
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Reset password @${admin.username}`}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-3 sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl sm:p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between sm:mb-5">
+          <h2 className="text-sm font-bold text-zinc-900 sm:text-base">
+            Reset Password @{admin.username}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Tutup"
+            className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        {state.success && state.generatedPassword ? (
+          <div className="space-y-3">
+            <div className="rounded-md bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800 sm:text-xs">
+              {state.message}
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs">
+                Password baru (simpan &amp; bagikan ke admin)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  readOnly
+                  value={state.generatedPassword}
+                  className={`${inputClass} font-mono tracking-wider`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Sembunyikan" : "Tampilkan"}
+                  className="rounded-md bg-zinc-100 p-2 text-zinc-600 transition hover:bg-zinc-200"
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={copyPassword}
+                  aria-label="Salin"
+                  className="rounded-md bg-indigo-100 p-2 text-indigo-700 transition hover:bg-indigo-200"
+                >
+                  <Copy className="size-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 sm:text-sm"
+              >
+                Selesai
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="text-[11px] text-zinc-600 sm:text-xs">
+              Password admin{" "}
+              <span className="font-semibold text-zinc-900">@{admin.username}</span>{" "}
+              akan di-generate ulang. Password lama akan diganti.
+            </p>
+            <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-800 sm:text-xs">
+              <strong>Catatan:</strong> Pastikan untuk mencatat atau membagikan
+              password baru karena tidak akan ditampilkan lagi.
+            </p>
+
+            <form
+              action={(fd) => startTransition(() => action(fd))}
+              className="mt-4 space-y-3"
+            >
+              <input type="hidden" name="adminId" value={admin.id} />
+
+              {state.error && (
+                <p className="rounded-md bg-rose-50 px-3 py-2 text-[11px] text-rose-700 sm:text-xs">
+                  {state.error}
+                </p>
+              )}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={pending}
+                  className="rounded-md bg-zinc-100 px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-200 disabled:opacity-50 sm:text-sm"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={pending}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-md bg-amber-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-amber-700 disabled:opacity-50 sm:text-sm"
+                >
+                  {pending && <Loader2 className="size-3 animate-spin" />}
+                  <KeyRound className="size-3" />
+                  Reset Password
+                </button>
+              </div>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EditAdminModal({
   admin,
   leaders,
   canEditRole,
   onClose,
   onSaved,
+  onResetPassword,
 }: {
   admin: Admin;
   leaders: LeaderOption[];
@@ -130,9 +296,11 @@ function EditAdminModal({
   canEditRole: boolean;
   onClose: () => void;
   onSaved: (msg: string) => void;
+  onResetPassword: (a: Admin) => void;
 }) {
   const [state, action] = useActionState(updateAdminUser, initialState);
   const [pending, startTransition] = useTransition();
+  const [currentRole, setCurrentRole] = useState<AdminRole>(admin.role);
 
   // Pakai reference equality: `state === initialState` artinya action belum pernah dipanggil.
   // Aman terhadap React StrictMode (double-invoke effect di dev).
@@ -187,7 +355,8 @@ function EditAdminModal({
                 id="newRole"
                 name="newRole"
                 required
-                defaultValue={admin.role}
+                value={currentRole}
+                onChange={(e) => setCurrentRole(e.target.value as AdminRole)}
                 disabled={pending}
                 className={inputClass}
               >
@@ -237,6 +406,37 @@ function EditAdminModal({
             />
           </div>
 
+          {canEditRole && currentRole === "admin_staff" && (
+            <div>
+              <label
+                htmlFor="newReferralCode"
+                className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs"
+              >
+                Referral Code
+              </label>
+              <input
+                id="newReferralCode"
+                name="newReferralCode"
+                type="text"
+                maxLength={20}
+                autoComplete="off"
+                defaultValue={admin.referralCode ?? ""}
+                placeholder="cth: 12345 atau staff_andi"
+                disabled={pending}
+                className={`${inputClass} font-mono`}
+              />
+              <p className="mt-1 text-[11px] text-zinc-500 sm:text-xs">
+                Boleh angka, huruf, underscore, dan hyphen. 3-20 karakter. Kosongkan
+                untuk mempertahankan yang ada.
+              </p>
+              {state.fieldErrors?.newReferralCode ? (
+                <p className="mt-1 rounded-md bg-rose-50 px-3 py-2 text-[11px] text-rose-700">
+                  {state.fieldErrors.newReferralCode[0]}
+                </p>
+              ) : null}
+            </div>
+          )}
+
           {state.fieldErrors?.newLeaderId ? (
             <p className="rounded-md bg-rose-50 px-3 py-2 text-[11px] text-rose-700 sm:text-xs">
               {state.fieldErrors.newLeaderId[0]}
@@ -249,23 +449,34 @@ function EditAdminModal({
             </p>
           )}
 
-          <div className="flex justify-end gap-2 pt-1">
+          <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => onResetPassword(admin)}
               disabled={pending}
-              className="rounded-md bg-zinc-100 px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-200 disabled:opacity-50 sm:text-sm"
+              className="inline-flex items-center justify-center gap-1.5 rounded-md bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-200 disabled:opacity-50 sm:text-sm"
             >
-              Batal
+              <KeyRound className="size-3" />
+              Reset Password
             </button>
-            <button
-              type="submit"
-              disabled={pending}
-              className="inline-flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50 sm:text-sm"
-            >
-              {pending && <Loader2 className="size-3 animate-spin" />}
-              Simpan
-            </button>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={pending}
+                className="rounded-md bg-zinc-100 px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-200 disabled:opacity-50 sm:text-sm"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={pending}
+                className="inline-flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50 sm:text-sm"
+              >
+                {pending && <Loader2 className="size-3 animate-spin" />}
+                Simpan
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -486,6 +697,33 @@ function CreateAdminModal({
                 </button>
               </div>
             </div>
+            {state.generatedReferralCode && (
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs">
+                  Referral Code
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={state.generatedReferralCode}
+                    className={`${inputClass} font-mono tracking-wider`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (state.generatedReferralCode) {
+                        navigator.clipboard.writeText(state.generatedReferralCode);
+                      }
+                    }}
+                    aria-label="Salin referral"
+                    className="rounded-md bg-indigo-100 p-2 text-indigo-700 transition hover:bg-indigo-200"
+                  >
+                    <Copy className="size-4" />
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="flex justify-end pt-1">
               <button
                 type="button"
@@ -580,6 +818,36 @@ function CreateAdminModal({
               </p>
             </div>
 
+            {role === "admin_staff" && (
+              <div>
+                <label
+                  htmlFor="referralCode"
+                  className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs"
+                >
+                  Referral Code Manual <span className="text-zinc-400">(opsional)</span>
+                </label>
+                <input
+                  id="referralCode"
+                  name="referralCode"
+                  type="text"
+                  maxLength={20}
+                  autoComplete="off"
+                  placeholder="cth: 12345 atau staff_andi"
+                  disabled={pending}
+                  className={`${inputClass} font-mono`}
+                />
+                <p className="mt-1 text-[11px] text-zinc-500 sm:text-xs">
+                  Boleh angka, huruf, underscore, dan hyphen. 3-20 karakter. Kosongkan
+                  untuk auto-generate.
+                </p>
+                {state.fieldErrors?.referralCode ? (
+                  <p className="mt-1 rounded-md bg-rose-50 px-3 py-2 text-[11px] text-rose-700">
+                    {state.fieldErrors.referralCode[0]}
+                  </p>
+                ) : null}
+              </div>
+            )}
+
             {state.fieldErrors?.username ? (
               <p className="rounded-md bg-rose-50 px-3 py-2 text-[11px] text-rose-700 sm:text-xs">
                 {state.fieldErrors.username[0]}
@@ -671,8 +939,11 @@ export function TeamTable({
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | "admin_leader" | "admin_staff">("all");
   const [creating, setCreating] = useState(false);
+  /** True setelah admin baru berhasil dibuat, untuk memicu reload hanya saat user menutup modal dari success view (bukan dari batal). */
+  const [justCreated, setJustCreated] = useState(false);
   const [editing, setEditing] = useState<Admin | null>(null);
   const [deleting, setDeleting] = useState<Admin | null>(null);
+  const [resetting, setResetting] = useState<Admin | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const filtered = useMemo(() => {
@@ -805,8 +1076,7 @@ export function TeamTable({
                           type="button"
                           aria-label={`Edit @${a.username}`}
                           onClick={() => setEditing(a)}
-                          disabled={a.role === "super_admin"}
-                          className="inline-flex items-center justify-center gap-1 rounded-md bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-700 transition hover:bg-sky-200 disabled:opacity-40"
+                          className="inline-flex items-center justify-center gap-1 rounded-md bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-700 transition hover:bg-sky-200"
                         >
                           <Pencil className="size-3" />
                           Edit
@@ -815,8 +1085,7 @@ export function TeamTable({
                           type="button"
                           aria-label={`Hapus @${a.username}`}
                           onClick={() => setDeleting(a)}
-                          disabled={a.role === "super_admin"}
-                          className="inline-flex items-center justify-center gap-1 rounded-md bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700 transition hover:bg-rose-200 disabled:opacity-40"
+                          className="inline-flex items-center justify-center gap-1 rounded-md bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700 transition hover:bg-rose-200"
                         >
                           <Trash2 className="size-3" />
                           Hapus
@@ -838,9 +1107,13 @@ export function TeamTable({
           currentLeaderId={currentLeaderId}
           onClose={() => {
             setCreating(false);
-            window.location.reload();
+            if (justCreated) {
+              setJustCreated(false);
+              window.location.reload();
+            }
           }}
           onCreated={(result) => {
+            setJustCreated(true);
             setToast({
               type: "success",
               text:
@@ -861,6 +1134,20 @@ export function TeamTable({
             setEditing(null);
             setToast({ type: "success", text: msg });
             window.location.reload();
+          }}
+          onResetPassword={(a) => {
+            setEditing(null);
+            setResetting(a);
+          }}
+        />
+      )}
+
+      {resetting && (
+        <ResetPasswordModal
+          admin={resetting}
+          onClose={() => setResetting(null)}
+          onReset={(msg) => {
+            setToast({ type: "success", text: msg });
           }}
         />
       )}

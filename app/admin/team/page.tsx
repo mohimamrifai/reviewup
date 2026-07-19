@@ -99,7 +99,7 @@ export default async function AdminTeamPage() {
         initialAdmins={adminRows.map((r) => ({
           id: r.id,
           username: r.username,
-          role: r.role,
+          role: r.role as "admin_leader" | "admin_staff",
           referralCode: r.referralCode,
           status: r.status,
           createdAt: r.createdAt.toISOString(),

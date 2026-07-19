@@ -73,7 +73,7 @@ const sections: Section[] = [
   {
     title: "Tim & Komisi",
     items: [
-      { label: "Tim", href: "/admin/team", icon: Users, superAdminOnly: true },
+      { label: "Tim", href: "/admin/team", icon: Users, leaderOrSuperOnly: true },
       {
         label: "Semua Staff",
         href: "/admin/staff",
