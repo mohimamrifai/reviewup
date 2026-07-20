@@ -32,24 +32,6 @@ function generateReferralCode(): string {
   return out;
 }
 
-async function requireSuperAdmin(): Promise<string> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("UNAUTHENTICATED");
-
-  const [profile] = await db
-    .select({ role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-  if (!profile || profile.role !== "super_admin") {
-    throw new Error("FORBIDDEN");
-  }
-  return user.id;
-}
-
 /**
  * Pemeriksaan peran untuk aksi tim:
  *  - `super_admin` boleh create/update/delete baik leader maupun staff.

@@ -4,8 +4,6 @@
  * diimpor dari client component untuk menampilkan label/rate.
  */
 
-import { eq } from "drizzle-orm";
-
 import { db } from "@/lib/db";
 import { commissionSettings } from "@/lib/db/schema";
 

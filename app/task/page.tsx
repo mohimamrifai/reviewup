@@ -51,15 +51,6 @@ export default async function TaskPage() {
     .where(eq(profiles.id, user.id))
     .limit(1);
 
-  const [activeTaskRow] = await db
-    .select({ id: tasks.id })
-    .from(tasks)
-    .where(
-      sql`${tasks.memberId} = ${user.id} AND ${tasks.status} = ANY(${sql.raw(`ARRAY[${ACTIVE_STATUSES.map((s) => `'${s}'::task_status`).join(",")}]`)})`,
-    )
-    .limit(1);
-  const hasActiveTask = Boolean(activeTaskRow);
-
   const [statsRow] = await db
     .select({
       totalCommission: sql<string>`COALESCE(SUM(CASE WHEN ${tasks.status} = 'selesai' THEN ${tasks.commission} ELSE 0 END), 0)`,

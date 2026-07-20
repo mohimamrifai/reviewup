@@ -47,8 +47,6 @@ async function getMemberContext(): Promise<
  * Klik berulang hanya meng-update request yang sama, tidak membuat duplikat.
  */
 export async function requestTask(
-  _prev: TaskRequestState,
-  _formData: FormData,
 ): Promise<TaskRequestState> {
   const ctx = await getMemberContext();
   if (!ctx.ok) return ctx.error;

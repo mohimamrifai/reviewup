@@ -16,10 +16,6 @@ type Order = {
   canSubmit: boolean;
 };
 
-type Props = {
-  initialOrders: Order[];
-};
-
 export function OrdersList({ initialOrders }: { initialOrders: Order[] }) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
 
