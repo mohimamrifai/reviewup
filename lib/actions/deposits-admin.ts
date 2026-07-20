@@ -6,8 +6,8 @@ import { z } from "zod";
 
 import { assertCanAccessMember, getScope } from "@/lib/access";
 import { db } from "@/lib/db";
-import { auditLogs, deposits, profiles } from "@/lib/db/schema";
-import { getCurrentUser } from "@/lib/auth/session";
+import { auditLogs, deposits } from "@/lib/db/schema";
+import { getCurrentProfile } from "@/lib/auth/session";
 
 const actionSchema = z.object({
   id: z.coerce.number().int().positive("ID tidak valid."),
@@ -24,18 +24,11 @@ export type DepositReviewState = {
 };
 
 async function requireAdmin() {
-  const user = await getCurrentUser();
-  if (!user) throw new Error("UNAUTHENTICATED");
-
-  const [profile] = await db
-    .select({ role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
+  const profile = await getCurrentProfile();
   if (!profile || profile.role === "member") {
     throw new Error("FORBIDDEN");
   }
-  return user.id;
+  return profile.id;
 }
 
 function handleAuthError(e: unknown): DepositReviewState {
@@ -47,9 +40,9 @@ function handleAuthError(e: unknown): DepositReviewState {
 }
 
 async function assertScopeForMember(memberId: string): Promise<void> {
-  const user = await getCurrentUser();
-  if (!user) throw new Error("UNAUTHENTICATED");
-  const scope = await getScope(user.id);
+  const profile = await getCurrentProfile();
+  if (!profile) throw new Error("UNAUTHENTICATED");
+  const scope = await getScope(profile.id);
   if (!scope) throw new Error("FORBIDDEN");
   try {
     assertCanAccessMember(scope, memberId);

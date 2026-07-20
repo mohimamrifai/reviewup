@@ -5,23 +5,16 @@ import { getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { products, profiles, taskRequests, tasks } from "@/lib/db/schema";
 import { type Level } from "@/lib/levels";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentProfile } from "@/lib/auth/session";
 
 import { TasksTable } from "./_components/tasks-table";
 
 export default async function AdminTaskPage() {
   // Identifikasi admin yang login
-  const user = await getCurrentUser();
-  if (!user) redirect("/admin/login");
+  const profile = await getCurrentProfile();
+  if (!profile || profile.role === "member") redirect("/admin/login");
 
-  const [me] = await db
-    .select({ id: profiles.id, role: profiles.role, referralCode: profiles.referralCode })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-  if (!me || me.role === "member") redirect("/admin/login");
-
-  const scope = await getScope(user.id);
+  const scope = await getScope(profile.id);
   // memberIds null = unrestricted (super admin). [] = no access.
   const memberIds = scope?.memberIds ?? null;
   const unrestricted = scope?.unrestricted ?? false;

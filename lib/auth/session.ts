@@ -8,8 +8,65 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
 
+const INTERNAL_USER_HEADER = "x-reviewup-user";
+const INTERNAL_PROFILE_HEADER = "x-reviewup-profile";
+
+type ForwardedUser = {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+  username?: string | null;
+  displayUsername?: string | null;
+  role?: string | null;
+  banned?: boolean | null;
+  banReason?: string | null;
+  banExpires?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  emailVerified?: boolean | null;
+};
+
+type ForwardedProfile = {
+  id: string;
+  role: (typeof profiles.$inferSelect)["role"];
+  accessOverrides: (typeof profiles.$inferSelect)["accessOverrides"];
+  referredBy: string | null;
+  leaderId: string | null;
+  username: string;
+  status: (typeof profiles.$inferSelect)["status"];
+  level: (typeof profiles.$inferSelect)["level"];
+  referralCode: string | null;
+};
+
+function parseForwardedHeader<T>(value: string | null): T | null {
+  if (!value) return null;
+  try {
+    return JSON.parse(decodeURIComponent(value)) as T;
+  } catch {
+    return null;
+  }
+}
+
+const getForwardedAuthContext = cache(async () => {
+  const requestHeaders = await headers();
+  return {
+    user: parseForwardedHeader<ForwardedUser>(
+      requestHeaders.get(INTERNAL_USER_HEADER),
+    ),
+    profile: parseForwardedHeader<ForwardedProfile>(
+      requestHeaders.get(INTERNAL_PROFILE_HEADER),
+    ),
+  };
+});
+
 export const getAuthSession = cache(async () => {
-  return auth.api.getSession({ headers: await headers() });
+  const forwarded = await getForwardedAuthContext();
+  if (forwarded.user) {
+    return { user: forwarded.user, session: null };
+  }
+
+  return await auth.api.getSession({ headers: await headers() });
 });
 
 export const getCurrentUser = cache(async () => {
@@ -25,6 +82,11 @@ export const requireCurrentUser = cache(async () => {
 });
 
 export const getCurrentProfile = cache(async () => {
+  const forwarded = await getForwardedAuthContext();
+  if (forwarded.profile) {
+    return forwarded.profile;
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return null;
@@ -40,11 +102,11 @@ export const getCurrentProfile = cache(async () => {
       username: profiles.username,
       status: profiles.status,
       level: profiles.level,
+      referralCode: profiles.referralCode,
     })
     .from(profiles)
     .where(eq(profiles.id, user.id))
     .limit(1);
-
   return profile ?? null;
 });
 

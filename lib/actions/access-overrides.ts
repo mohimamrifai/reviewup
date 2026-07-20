@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { auditLogs, profiles } from "@/lib/db/schema";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentProfile } from "@/lib/auth/session";
 
 export type AccessOverrideState = {
   error?: string;
@@ -16,18 +16,11 @@ export type AccessOverrideState = {
 };
 
 async function requireSuperAdmin(): Promise<string> {
-  const user = await getCurrentUser();
-  if (!user) throw new Error("UNAUTHENTICATED");
-
-  const [profile] = await db
-    .select({ role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
+  const profile = await getCurrentProfile();
   if (!profile || profile.role !== "super_admin") {
     throw new Error("FORBIDDEN");
   }
-  return user.id;
+  return profile.id;
 }
 
 const overrideSchema = z.object({

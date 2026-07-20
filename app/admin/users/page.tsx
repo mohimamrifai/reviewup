@@ -4,22 +4,15 @@ import { redirect } from "next/navigation";
 import { getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentProfile } from "@/lib/auth/session";
 
 import { MembersTable } from "./_components/members-table";
 
 export default async function AdminUsersPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/admin/login");
+  const profile = await getCurrentProfile();
+  if (!profile || profile.role === "member") redirect("/admin/login");
 
-  const [me] = await db
-    .select({ id: profiles.id, role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-  if (!me || me.role === "member") redirect("/admin/login");
-
-  const scope = await getScope(user.id);
+  const scope = await getScope(profile.id);
   const memberIds = scope?.memberIds ?? null;
   const unrestricted = scope?.unrestricted ?? false;
 

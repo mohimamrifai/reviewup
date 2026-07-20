@@ -12,7 +12,7 @@ import {
 } from "@/lib/constants/withdrawal";
 import { db } from "@/lib/db";
 import { auditLogs, profiles, withdrawals } from "@/lib/db/schema";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentProfile } from "@/lib/auth/session";
 
 const actionSchema = z
   .object({
@@ -55,18 +55,11 @@ export type WithdrawReviewState = {
 };
 
 async function requireAdmin() {
-  const user = await getCurrentUser();
-  if (!user) throw new Error("UNAUTHENTICATED");
-
-  const [profile] = await db
-    .select({ role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
+  const profile = await getCurrentProfile();
   if (!profile || profile.role === "member") {
     throw new Error("FORBIDDEN");
   }
-  return user.id;
+  return profile.id;
 }
 
 function handleAuthError(e: unknown): WithdrawReviewState {
@@ -78,9 +71,9 @@ function handleAuthError(e: unknown): WithdrawReviewState {
 }
 
 async function assertScopeForMember(memberId: string): Promise<void> {
-  const user = await getCurrentUser();
-  if (!user) throw new Error("UNAUTHENTICATED");
-  const scope = await getScope(user.id);
+  const profile = await getCurrentProfile();
+  if (!profile) throw new Error("UNAUTHENTICATED");
+  const scope = await getScope(profile.id);
   if (!scope) throw new Error("FORBIDDEN");
   try {
     assertCanAccessMember(scope, memberId);

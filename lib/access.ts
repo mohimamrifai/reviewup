@@ -118,7 +118,9 @@ export const getScope = cache(async (userId: string | null): Promise<Scope | nul
   if (!userId) return null;
 
   const profile = await loadScopeProfile(userId);
-  if (!profile) return null;
+  if (!profile) {
+    return null;
+  }
 
   const role = profile.role as AdminRole;
   const overrides = readOverrides(profile.accessOverrides);
@@ -134,10 +136,11 @@ export const getScope = cache(async (userId: string | null): Promise<Scope | nul
   }
 
   if (role === "admin_staff") {
+    const memberIds = await loadMemberIdsByReferrer(profile.id);
     return {
       actorId: profile.id,
       role,
-      memberIds: await loadMemberIdsByReferrer(profile.id),
+      memberIds,
       unrestricted: overrides.fullAccess === true,
       overrides,
     };

@@ -180,7 +180,6 @@ export async function getDashboardStats(
 
   const rangeDeposit = Number(depApprovedRow?.total ?? 0);
   const rangeWithdrawal = Number(wdCompletedRow?.total ?? 0);
-
   return {
     totalMembers,
     rangeRegistrations: regRow?.count ?? 0,

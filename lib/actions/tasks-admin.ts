@@ -8,7 +8,7 @@ import { assertCanAccessMember, getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { type Level, getCommissionRate } from "@/lib/levels";
 import { auditLogs, products, profiles, taskRequests, tasks } from "@/lib/db/schema";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentProfile } from "@/lib/auth/session";
 
 const statusSchema = z.object({
   taskId: z.coerce.number().int().positive("ID tugas tidak valid."),
@@ -30,16 +30,9 @@ async function requireUser(): Promise<{
   userId: string;
   isAdmin: boolean;
 }> {
-  const user = await getCurrentUser();
-  if (!user) throw new Error("UNAUTHENTICATED");
-
-  const [profile] = await db
-    .select({ role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
+  const profile = await getCurrentProfile();
   if (!profile) throw new Error("UNAUTHENTICATED");
-  return { userId: user.id, isAdmin: profile.role !== "member" };
+  return { userId: profile.id, isAdmin: profile.role !== "member" };
 }
 
 async function requireAdmin(): Promise<string> {
@@ -57,9 +50,9 @@ function handleAuthError(e: unknown): TaskReviewState {
 }
 
 async function assertScopeForMember(memberId: string): Promise<void> {
-  const user = await getCurrentUser();
-  if (!user) throw new Error("UNAUTHENTICATED");
-  const scope = await getScope(user.id);
+  const profile = await getCurrentProfile();
+  if (!profile) throw new Error("UNAUTHENTICATED");
+  const scope = await getScope(profile.id);
   if (!scope) throw new Error("FORBIDDEN");
   try {
     assertCanAccessMember(scope, memberId);
