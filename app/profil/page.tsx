@@ -24,6 +24,7 @@ import { SecondaryActions } from "./_components/secondary-actions";
 import { SectionCard } from "./_components/section-card";
 import { ActionRow } from "./_components/action-row";
 import { BottomNav } from "../_components/bottom-nav";
+import formatRupiah from "@/lib/format-rupiah";
 
 const TIER_LABEL: Record<string, string> = {
   classic: "Classic",
@@ -39,14 +40,6 @@ const STATUS_LABEL: Record<string, string> = {
   offline: "Offline",
   banned: "Banned",
 };
-
-function formatRupiah(value: string | number) {
-  const num = typeof value === "string" ? Number(value) : value;
-  return "Rp " + num.toLocaleString("id-ID", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  });
-}
 
 export default async function ProfilPage() {
   const supabase = await createClient();
