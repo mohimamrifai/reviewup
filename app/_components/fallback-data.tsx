@@ -1,7 +1,6 @@
 import {
   Footprints,
   Headphones,
-  Package,
   Shirt,
   Tv,
   Wallet,

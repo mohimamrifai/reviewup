@@ -28,16 +28,6 @@ export default async function AdminDashboardPage({
 
   const stats = await getDashboardStats(range, scope);
 
-  // Label scope untuk header informasi.
-  const scopeLabel =
-    scope?.role === "super_admin"
-      ? "Seluruh platform"
-      : scope?.role === "admin_leader"
-        ? "Tim Anda"
-        : scope?.role === "admin_staff"
-          ? "Member Anda"
-          : null;
-
   const periodLabel = range ? "Periode Dipilih" : "Sepanjang Waktu";
   const periodLabelToday = range ? "Periode Dipilih" : "Hari Ini";
 

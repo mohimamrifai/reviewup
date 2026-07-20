@@ -4,7 +4,6 @@ import {
   forwardRef,
   type InputHTMLAttributes,
   type ReactNode,
-  type TextareaHTMLAttributes,
 } from "react";
 import type { FieldError } from "react-hook-form";
 

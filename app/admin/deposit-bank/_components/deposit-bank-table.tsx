@@ -292,7 +292,7 @@ function DeleteAccountModal({
 }
 
 function ToggleActiveButton({ account }: { account: Account }) {
-  const [state, action] = useActionState(
+  const [, action] = useActionState(
     toggleDepositBankAccountActive,
     initialState,
   );

@@ -3,10 +3,7 @@
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { Loader2, Save } from "lucide-react";
 
-import {
-  updateCommissionSetting,
-  type CommissionSettingsState,
-} from "@/lib/actions/commission-settings";
+import { updateCommissionSetting } from "@/lib/actions/commission-settings";
 
 type Row = {
   level: string;
@@ -34,6 +31,9 @@ function EditCell({ row }: { row: Row }) {
     // Initial state `{}` tidak punya `success`, otomatis skip.
     // Aman terhadap React StrictMode (double-invoke effect di dev).
     if (!state.success || !state.message) return;
+    // Reset state lokal dipicu oleh transisi state.success dari server action,
+    // bukan derivasi. Set di useEffect adalah pola yang benar untuk side effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setToast(state.message);
     const t = setTimeout(() => setToast(null), 2500);
     return () => clearTimeout(t);

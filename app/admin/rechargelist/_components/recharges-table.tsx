@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ExternalLink, Search, X } from "lucide-react";
 
@@ -157,9 +157,6 @@ export function RechargesTable({
                       cur.map((x) => (x.id === updated.id ? updated : x)),
                     )
                   }
-                  onRemoved={(id) =>
-                    setRecharges((cur) => cur.filter((x) => x.id !== id))
-                  }
                 />
               ))
             )}
@@ -173,11 +170,9 @@ export function RechargesTable({
 function Row({
   recharge,
   onUpdated,
-  onRemoved,
 }: {
   recharge: Recharge;
   onUpdated: (r: Recharge) => void;
-  onRemoved: (id: number) => void;
 }) {
   const [reviewing, setReviewing] = useState<"approve" | "reject" | null>(null);
 
@@ -281,6 +276,9 @@ function ReviewModal({
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // Set mounted=true sekali setelah mount untuk handle portal SSR.
+    // Pola yang benar untuk inisialisasi berbasis client-only state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 

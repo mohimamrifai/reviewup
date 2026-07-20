@@ -30,14 +30,6 @@ function formatRupiah(value: string | number): string {
   return "Rp " + num.toLocaleString("id-ID");
 }
 
-function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(iso));
-}
-
 export function StaffsTable({
   initialStaffs,
   periodLabel,

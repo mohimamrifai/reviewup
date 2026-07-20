@@ -337,14 +337,12 @@ function ResetPasswordModal({
 
 function EditAdminModal({
   admin,
-  leaders,
   canEditRole,
   onClose,
   onSaved,
   onResetPassword,
 }: {
   admin: Admin;
-  leaders: LeaderOption[];
   /**
    * `true` untuk super admin (boleh ganti role/leader).
    * `false` untuk admin leader (hanya boleh ubah username & leaderId otomatis).
@@ -1443,7 +1441,6 @@ export function TeamTable({
       {editing && (
         <EditAdminModal
           admin={editing}
-          leaders={leaders}
           canEditRole={isCurrentSuperAdmin}
           onClose={() => setEditing(null)}
           onSaved={(msg) => {

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Check, ChevronDown, Loader2, Search, X } from "lucide-react";
 
@@ -65,6 +66,9 @@ export function AssignProductModal({
   // Sync input dengan produk yang dipilih.
   useEffect(() => {
     if (selectedProduct) {
+      // Sync query string dengan selectedProduct prop. Pola yang benar untuk
+      // sinkronisasi state lokal dengan perubahan prop (uncontrolled-like UX).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery(selectedProduct.name);
     } else {
       setQuery("");
@@ -207,9 +211,12 @@ export function AssignProductModal({
                           }`}
                         >
                           {p.imageUrl ? (
-                            <img
+                            <Image
                               src={p.imageUrl}
                               alt=""
+                              width={36}
+                              height={36}
+                              unoptimized
                               className="size-9 shrink-0 rounded object-cover ring-1 ring-zinc-200"
                             />
                           ) : (

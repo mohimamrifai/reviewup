@@ -20,7 +20,6 @@ export function StartTaskButton({
 
   function handleClick() {
     startTransition(async () => {
-      const fd = new FormData();
       const result = await requestTask();
       // Selalu arahkan ke /order. Kalau user sudah punya request/task
       // aktif sebelumnya, halaman /order akan menampilkan toast.

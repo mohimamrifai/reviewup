@@ -109,7 +109,7 @@ export default async function AdminStaffsPage({
   // 3. Aggregate per staff dalam rentang tanggal yang dipilih.
   //    Total deposit & penarikan dihitung dari member yang referred oleh
   //    staff, dengan `created_at` di antara [fromDate, toDate].
-  let statsByStaff = new Map<
+  const statsByStaff = new Map<
     string,
     { memberCount: number; totalDeposit: string; totalWithdrawal: string }
   >();

@@ -6,6 +6,9 @@ export function Starfield() {
   const [shadows, setShadows] = useState("");
 
   useEffect(() => {
+    // Generate starfield sekali di mount. Set dari useEffect kosong adalah
+    // pola yang benar untuk inisialisasi yang butuh API browser (Math.random
+    // aman di server, tapi dipanggil di client untuk animasi yang halus).
     const stars: string[] = [];
     for (let i = 0; i < 140; i++) {
       const x = Math.random() * 100;
@@ -16,6 +19,7 @@ export function Starfield() {
         `${x.toFixed(2)}vw ${y.toFixed(2)}vh 0 ${size}px rgba(255,255,255,${alpha.toFixed(2)})`,
       );
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setShadows(stars.join(", "));
   }, []);
 

@@ -179,6 +179,9 @@ export function AdminNav({
   // Buka otomatis section yang berisi halaman aktif
   useEffect(() => {
     if (!activeHref) return;
+    // Auto-expand section saat route berubah. Set dari useEffect adalah pola
+    // yang benar untuk side effect terhadap perubahan route (bukan derivasi).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCollapsed((cur) => {
       const next = { ...cur };
       for (const s of visibleSections) {
@@ -194,7 +197,10 @@ export function AdminNav({
 
   // Tutup drawer mobile saat route berubah (otomatis via re-render)
   useEffect(() => {
-    if (open) setOpen(false);
+    if (open)
+      // Tutup drawer saat route aktif berubah; side effect terhadap route change.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeHref]);
 

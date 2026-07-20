@@ -3,10 +3,7 @@
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { Loader2, Save, X } from "lucide-react";
 
-import {
-  setAccessOverrides,
-  type AccessOverrideState,
-} from "@/lib/actions/access-overrides";
+import { setAccessOverrides } from "@/lib/actions/access-overrides";
 import type { AccessOverrides } from "@/lib/access";
 
 type Admin = {
@@ -16,9 +13,6 @@ type Admin = {
   status: string;
   overrides: AccessOverrides;
 };
-
-const inputClass =
-  "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm";
 
 const headerCellClass =
   "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-600 sm:px-4 sm:py-3 sm:text-xs";

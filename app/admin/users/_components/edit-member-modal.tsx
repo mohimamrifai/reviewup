@@ -72,6 +72,10 @@ function FieldError({ errs }: { errs?: string[] }) {
 function StatusMessage({ state }: { state: MemberToolState }) {
   const [show, setShow] = useState(true);
   useEffect(() => {
+    // Reset show=true setiap kali `state` berubah (mis. error/success baru),
+    // supaya pesan tampil lagi walau user sebelumnya sudah menutupnya.
+    // Pola yang benar untuk re-show notifikasi terhadap perubahan state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setShow(true);
   }, [state]);
   if (!show) return null;
@@ -273,6 +277,10 @@ function WithdrawStatusForm({
     if (state.success) {
       onSaved({ ...member });
       router.refresh();
+      // Reset state lokal dipicu oleh transisi state.success dari server action
+      // (bukan derivasi dari state lain), jadi dipanggil di useEffect adalah pola
+      // yang benar. Disable rule `react-hooks/set-state-in-effect` untuk baris ini.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setReason("");
       setConfirmOpen(false);
     }

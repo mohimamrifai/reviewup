@@ -1,9 +1,9 @@
-import { asc, eq } from "drizzle-orm";
+import { asc } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import { getScope } from "@/lib/access";
 import { db } from "@/lib/db";
-import { commissionSettings, profiles } from "@/lib/db/schema";
+import { commissionSettings } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import { LEVEL_LABEL, LEVEL_RATE_PERCENT } from "@/lib/levels";
 
@@ -20,14 +20,6 @@ export default async function CommissionSettingsPage() {
   if (!scope || (scope.role !== "super_admin" && scope.overrides.commissionEdit !== true)) {
     redirect("/admin/commission");
   }
-
-  const isSuperAdmin = scope.role === "super_admin";
-
-  const [me] = await db
-    .select({ id: profiles.id, role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
 
   // Ambil semua setting (kalau ada)
   const settings = await db
