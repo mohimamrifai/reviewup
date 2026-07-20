@@ -271,7 +271,7 @@ export function PermissionsTable({ initialAdmins }: { initialAdmins: Admin[] }) 
       {toast && (
         <div
           role="status"
-          className={`fixed left-1/2 top-4 z-[60] -translate-x-1/2 rounded-md px-4 py-2 text-xs font-medium shadow-lg sm:text-sm ${
+          className={`fixed left-1/2 top-4 z-60 -translate-x-1/2 rounded-md px-4 py-2 text-xs font-medium shadow-lg sm:text-sm ${
             toast.type === "success"
               ? "bg-emerald-600 text-white"
               : "bg-rose-600 text-white"

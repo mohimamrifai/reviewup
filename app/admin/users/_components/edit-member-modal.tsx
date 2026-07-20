@@ -374,7 +374,7 @@ function WithdrawStatusForm({
           role="dialog"
           aria-modal="true"
           aria-label="Konfirmasi blokir"
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-zinc-900/50 p-3 sm:p-4"
+          className="fixed inset-0 z-60 flex items-center justify-center bg-zinc-900/50 p-3 sm:p-4"
           onClick={() => !pending && setConfirmOpen(false)}
         >
           <div
