@@ -1,14 +1,14 @@
 "use server";
 
 import { eq } from "drizzle-orm";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getScope } from "@/lib/access";
+import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { auditLogs, profiles } from "@/lib/db/schema";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 
 export type AdminUserState = {
   error?: string;
@@ -47,10 +47,8 @@ async function requireTeamManager(): Promise<{
   role: "super_admin" | "admin_leader";
   scope: Awaited<ReturnType<typeof getScope>>;
 }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const session = await auth.api.getSession({ headers: await headers() });
+  const user = session?.user;
   if (!user) throw new Error("UNAUTHENTICATED");
 
   const scope = await getScope(user.id);
@@ -59,6 +57,21 @@ async function requireTeamManager(): Promise<{
     throw new Error("FORBIDDEN");
   }
   return { actorId: user.id, role: scope.role, scope };
+}
+
+function syntheticEmail(username: string) {
+  return `${username.toLowerCase()}@reviewup.app`;
+}
+
+function describeBetterAuthError(err: unknown): string {
+  if (!err) return "kesalahan tidak diketahui";
+  if (typeof err === "string") return err;
+  if (err instanceof Error) return err.message || err.toString();
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
 }
 
 const createSchema = z
@@ -229,53 +242,53 @@ export async function createAdminUser(
     }
   }
 
-  const admin = createAdminClient();
   let createdUser: { id: string; email?: string } | null = null;
   let createErr: unknown = null;
   try {
-    const { data, error } = await admin.auth.admin.createUser({
-      email: `${username.toLowerCase()}@reviewup.app`,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        username,
+    const data = await auth.api.createUser({
+      headers: await headers(),
+      body: {
+        email: syntheticEmail(username),
+        password,
+        name: username,
         role,
-        ...(referralCode ? { referral_code: referralCode } : {}),
-        ...(resolvedLeaderId ? { leader_id: resolvedLeaderId } : {}),
+        data: { username },
       },
     });
-    if (error || !data?.user) {
-      createErr = error;
-    } else {
-      createdUser = { id: data.user.id, email: data.user.email ?? undefined };
-    }
+    createdUser = { id: data.user.id, email: data.user.email ?? undefined };
   } catch (e) {
     createErr = e;
   }
 
   if (!createdUser) {
     console.error("[createAdminUser] createUser error:", createErr);
-    return { error: "Gagal membuat akun admin." };
+    return { error: `Gagal membuat akun admin: ${describeBetterAuthError(createErr)}.` };
   }
 
-  // Defensive write: pastikan `profiles.leader_id` ter-set untuk admin_staff.
-  // Trigger DB `handle_new_user` seharusnya menulisnya dari user_metadata,
-  // tapi kita tulis ulang di sini sebagai pengaman agar relasi leader-staff
-  // tetap konsisten walau trigger DB di DB tertinggal versi lama / gagal.
-  // Idempotent: COALESCE-style (jangan override jika sudah valid).
-  if (role === "admin_staff" && resolvedLeaderId) {
-    const [current] = await db
-      .select({ leaderId: profiles.leaderId })
-      .from(profiles)
-      .where(eq(profiles.id, createdUser.id))
-      .limit(1);
-    if (current && !current.leaderId) {
-      await db
-        .update(profiles)
-        .set({ leaderId: resolvedLeaderId, updatedAt: new Date() })
-        .where(eq(profiles.id, createdUser.id));
-    }
-  }
+  // Better Auth hook membuat `profiles` default sebagai `member`.
+  // Pastikan row ini selalu tersinkron ke role admin final supaya daftar
+  // `/admin/team` langsung membaca data yang benar setelah create.
+  const now = new Date();
+  await db
+    .insert(profiles)
+    .values({
+      id: createdUser.id,
+      username,
+      role,
+      leaderId: resolvedLeaderId,
+      referralCode,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: profiles.id,
+      set: {
+        username,
+        role,
+        leaderId: resolvedLeaderId,
+        referralCode,
+        updatedAt: now,
+      },
+    });
 
   // Tulis audit log
   await db.insert(auditLogs).values({
@@ -460,15 +473,24 @@ export async function updateAdminUser(
   // Sinkronkan username di auth (supaya synthetic email ikut konsisten).
   // Email tidak diupdate —akan jadi drift dengan synthetic email.
   // Untuk sekarang, hanya update raw_user_meta_data.username.
-  const admin = createAdminClient();
-  await admin.auth.admin.updateUserById(adminId, {
-    user_metadata: {
-      username: newUsername,
-      role: newRole,
-      ...(resolvedLeaderId ? { leader_id: resolvedLeaderId } : {}),
-      ...(resolvedReferralCode ? { referral_code: resolvedReferralCode } : {}),
-    },
-  });
+  try {
+    await auth.api.adminUpdateUser({
+      headers: await headers(),
+      body: {
+        userId: adminId,
+        data: {
+          username: newUsername,
+          name: newUsername,
+          email: syntheticEmail(newUsername),
+          role: newRole,
+        },
+      },
+    });
+  } catch (error) {
+    return {
+      error: `Gagal sinkronkan akun auth: ${describeBetterAuthError(error)}.`,
+    };
+  }
 
   await db.insert(auditLogs).values({
     actorId: actor.actorId,
@@ -561,13 +583,19 @@ export async function resetAdminPassword(
     }
   }
 
-  const admin = createAdminClient();
-  const { error: updErr } = await admin.auth.admin.updateUserById(adminId, {
-    password,
-  });
-  if (updErr) {
-    console.error("[resetAdminPassword] updateUserById error:", updErr);
-    return { error: "Gagal memperbarui password." };
+  try {
+    await auth.api.setUserPassword({
+      headers: await headers(),
+      body: {
+        userId: adminId,
+        newPassword: password,
+      },
+    });
+  } catch (error) {
+    console.error("[resetAdminPassword] setUserPassword error:", error);
+    return {
+      error: `Gagal memperbarui password: ${describeBetterAuthError(error)}.`,
+    };
   }
 
   await db.insert(auditLogs).values({
@@ -670,12 +698,15 @@ export async function deleteAdminUser(
   }
 
   // Hapus auth user (CASCADE ke profile via trigger / ON DELETE CASCADE di FK)
-  const admin = createAdminClient();
-  const { error: delErr } = await admin.auth.admin.deleteUser(adminId);
-  if (delErr) {
-    console.error("[deleteAdminUser] deleteUser error:", delErr);
+  try {
+    await auth.api.removeUser({
+      headers: await headers(),
+      body: { userId: adminId },
+    });
+  } catch (error) {
+    console.error("[deleteAdminUser] removeUser error:", error);
     return {
-      error: `Gagal menghapus akun: ${delErr.message ?? "kesalahan tidak diketahui"}. Hubungi developer jika masalah berlanjut.`,
+      error: `Gagal menghapus akun: ${describeBetterAuthError(error)}. Hubungi developer jika masalah berlanjut.`,
     };
   }
 
@@ -684,10 +715,15 @@ export async function deleteAdminUser(
 
   await db.insert(auditLogs).values({
     actorId: actor.actorId,
-    targetId: adminId,
+    targetId: null,
     action: "delete_admin",
     note: `Akun admin @${target.username} (${target.role}) dihapus.`,
-    metadata: JSON.stringify({ username: target.username, role: target.role, byRole: actor.role }),
+    metadata: JSON.stringify({
+      deletedAdminId: adminId,
+      username: target.username,
+      role: target.role,
+      byRole: actor.role,
+    }),
   });
 
   revalidatePath("/admin/team");
@@ -790,11 +826,6 @@ export async function setStaffLeader(
   // Sinkronkan user_metadata di Supabase Auth supaya trigger
   // `handle_new_user` (jika dipanggil ulang) tetap menulis leader_id
   // yang benar. Pakai admin client (bypass RLS).
-  const admin = createAdminClient();
-  await admin.auth.admin.updateUserById(staffId, {
-    user_metadata: { leader_id: newLeaderId },
-  });
-
   await db.insert(auditLogs).values({
     actorId: actor.actorId,
     targetId: staffId,

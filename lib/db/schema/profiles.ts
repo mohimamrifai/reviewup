@@ -4,7 +4,6 @@ import {
   integer,
   jsonb,
   numeric,
-  pgSchema,
   pgTable,
   text,
   timestamp,
@@ -17,18 +16,14 @@ import {
   userRole,
   userStatus,
 } from "./enums";
-
-const authSchema = pgSchema("auth");
-const authUsers = authSchema.table("users", {
-  id: uuid("id").primaryKey(),
-});
+import { user } from "./better-auth";
 
 export const profiles = pgTable(
   "profiles",
   {
     id: uuid("id")
       .primaryKey()
-      .references(() => authUsers.id, { onDelete: "cascade" }),
+      .references(() => user.id, { onDelete: "cascade" }),
     username: text("username").notNull(),
     role: userRole("role").notNull().default("member"),
     level: userLevel("level").notNull().default("classic"),

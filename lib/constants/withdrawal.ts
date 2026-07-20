@@ -3,6 +3,8 @@
  * Sumber tunggal untuk client & server.
  */
 
+export { formatRupiah } from "@/lib/format-rupiah";
+
 export const MIN_WITHDRAWAL_AMOUNT = 50_000;
 export const MAX_WITHDRAWAL_AMOUNT = 100_000_000;
 

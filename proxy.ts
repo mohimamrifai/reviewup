@@ -1,5 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { eq } from "drizzle-orm";
+
+import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { profiles } from "@/lib/db/schema";
 
 const MEMBER_PREFIXES = [
   "/profil",
@@ -30,44 +34,31 @@ export async function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", request.nextUrl.pathname);
 
-  let response = NextResponse.next({
+  const response = NextResponse.next({
     request: { headers: requestHeaders },
   });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value),
-          );
-          response = NextResponse.next({
-            request: { headers: requestHeaders },
-          });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          );
-        },
-      },
-    },
-  );
-
-  // Pakai getSession() (baca dari cookie, tanpa HTTP call) untuk routing
-  // decision. getUser() di sini akan trigger HTTP call ke Supabase Auth
-  // setiap request, yang pada Vercel cold start bisa timeout dan
-  // menyebabkan user dianggap logout padahal cookie masih valid.
-  // Validasi JWT penuh tetap dilakukan oleh getUser() di server pages
-  // dan server actions yang membaca data sensitif.
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const session = await auth.api.getSession({
+    headers: request.headers,
+  });
   const user = session?.user ?? null;
   const { pathname } = request.nextUrl;
+  const needsRoleCheck =
+    !!user &&
+    (startsWithAny(pathname, MEMBER_PREFIXES) ||
+      startsWithAny(pathname, ADMIN_PREFIXES) ||
+      pathname === "/login" ||
+      pathname === "/register");
+
+  let role = (user as { role?: string } | null)?.role ?? null;
+  if (needsRoleCheck && user) {
+    const [profile] = await db
+      .select({ role: profiles.role })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1);
+    role = profile?.role ?? role ?? null;
+  }
 
   // Halaman admin: wajib login, kecuali /admin/login
   if (startsWithAny(pathname, ADMIN_PREFIXES) && !isAdminPublic(pathname)) {
@@ -88,8 +79,6 @@ export async function proxy(request: NextRequest) {
     // Non-member (admin_staff / admin_leader / super_admin) yang akses
     // halaman member akan dilempar ke dashboard admin. Role di-set di
     // user_metadata saat signup (lihat lib/actions/auth.ts & admin-users.ts).
-    const role = (user.user_metadata as { role?: string } | undefined)
-      ?.role;
     if (role !== "member") {
       const url = request.nextUrl.clone();
       url.pathname = role ? "/admin/dashboard" : "/admin/login";
@@ -100,7 +89,7 @@ export async function proxy(request: NextRequest) {
   // Sudah login & membuka halaman login/register → lempar ke profil
   if (user && (pathname === "/login" || pathname === "/register")) {
     const url = request.nextUrl.clone();
-    url.pathname = "/profil";
+    url.pathname = role === "member" ? "/profil" : "/admin/dashboard";
     return NextResponse.redirect(url);
   }
 

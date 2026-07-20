@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { deposits, profiles } from "@/lib/db/schema";
+import { attachUploadedFileToDeposit, isAllowedImageMime, saveUploadedFile } from "@/lib/storage/local-storage";
 import { createClient } from "@/lib/supabase/server";
 
 const depositSchema = z.object({
@@ -21,7 +22,6 @@ export type DepositState = {
   success?: boolean;
 };
 
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
 export async function submitDeposit(
@@ -60,40 +60,26 @@ export async function submitDeposit(
   if (file.size > MAX_SIZE) {
     return { fieldErrors: { proof: ["Ukuran file maksimal 5MB."] } };
   }
-  if (!ALLOWED_TYPES.includes(file.type)) {
+  if (!isAllowedImageMime(file.type)) {
     return { fieldErrors: { proof: ["Format harus JPG, PNG, atau WEBP."] } };
   }
 
-  // Upload ke Storage (path: {userId}/{timestamp}.{ext})
-  const ext = file.type.split("/")[1] ?? "jpg";
-  const path = `${user.id}/${Date.now()}.${ext}`;
+  const saved = await saveUploadedFile({
+    file,
+    category: "deposit-proof",
+    visibility: "private",
+    ownerUserId: user.id,
+    createdBy: user.id,
+  });
 
-  const { error: uploadError } = await supabase.storage
-    .from("deposits")
-    .upload(path, file, { contentType: file.type, upsert: false });
-
-  if (uploadError) {
-    return { error: `Gagal upload bukti: ${uploadError.message}` };
-  }
-
-  // Get signed URL (bucket private, jadi URL hanya valid sementara).
-  // Disimpan di DB sebagai "proof path" yang nanti di-resolve jadi signed URL
-  // oleh admin saat review deposit.
-  const { data: signedData, error: signedError } = await supabase.storage
-    .from("deposits")
-    .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 hari (cukup sampai admin review)
-
-  if (signedError || !signedData?.signedUrl) {
-    return { error: `Gagal membuat URL bukti: ${signedError?.message ?? "unknown"}` };
-  }
-
-  // Insert deposit row (simpan signed URL awal + path untuk generate ulang nanti)
-  await db.insert(deposits).values({
+  const [createdDeposit] = await db.insert(deposits).values({
     memberId: user.id,
     amount: amount.toFixed(2),
-    proofUrl: signedData.signedUrl,
+    proofUrl: saved.url,
     status: "pending",
-  });
+  }).returning({ id: deposits.id });
+
+  await attachUploadedFileToDeposit(saved.id, createdDeposit.id);
 
   revalidatePath("/recharge");
   revalidatePath("/profil");

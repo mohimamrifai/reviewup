@@ -1,12 +1,12 @@
 "use server";
 
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
 
+import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { profiles } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
 
 const loginSchema = z
   .object({
@@ -51,17 +51,10 @@ export type ChangePasswordState = {
   message?: string;
 };
 
-function syntheticEmail(username: string) {
-  return `${username.toLowerCase()}@reviewup.app`;
-}
-
 async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("UNAUTHENTICATED");
-  return { supabase, user };
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) throw new Error("UNAUTHENTICATED");
+  return { user: session.user };
 }
 
 export async function changeLoginPassword(
@@ -77,37 +70,23 @@ export async function changeLoginPassword(
     return { fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
-  let user;
-  let supabase;
   try {
-    const ctx = await requireUser();
-    supabase = ctx.supabase;
-    user = ctx.user;
+    await requireUser();
   } catch {
     return { error: "Sesi habis, silakan login ulang." };
   }
 
-  const [profile] = await db
-    .select({ username: profiles.username })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-  if (!profile) return { error: "Profil tidak ditemukan." };
-
-  // Verifikasi password lama dengan sign-in ulang
-  const { error: signInError } = await supabase.auth.signInWithPassword({
-    email: syntheticEmail(profile.username),
-    password: parsed.data.currentPassword,
-  });
-  if (signInError) {
+  try {
+    await auth.api.changePassword({
+      body: {
+        currentPassword: parsed.data.currentPassword,
+        newPassword: parsed.data.newPassword,
+        revokeOtherSessions: false,
+      },
+      headers: await headers(),
+    });
+  } catch {
     return { fieldErrors: { currentPassword: ["Kata sandi lama salah."] } };
-  }
-
-  const { error: updateError } = await supabase.auth.updateUser({
-    password: parsed.data.newPassword,
-  });
-  if (updateError) {
-    return { error: `Gagal memperbarui kata sandi: ${updateError.message}` };
   }
 
   revalidatePath("/profil/change-password");

@@ -1,14 +1,14 @@
 "use server";
 
 import { eq } from "drizzle-orm";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
+import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
-import { loginSchema, registerSchema } from "@/lib/schemas/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { registerSchema, loginSchema } from "@/lib/schemas/auth";
 
 export type AuthState = {
   error?: string;
@@ -19,6 +19,10 @@ function syntheticEmail(username: string) {
   return `${username.toLowerCase()}@reviewup.app`;
 }
 
+/**
+ * Sign in pakai Better Auth signInUsername (username plugin).
+ * nextCookies plugin di lib/auth.ts auto-forward Set-Cookie ke Next.js.
+ */
 export async function signIn(
   _prev: AuthState,
   formData: FormData,
@@ -32,27 +36,31 @@ export async function signIn(
     return { fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
-  const supabase = await createClient();
-  // Drop sesi lama dulu agar tidak bentrok dengan tab lain
-  // (cookie Supabase di-share across tabs pada domain yang sama).
-  await supabase.auth.signOut();
+  // Sign out dulu agar tidak bentrok dengan sesi lama
+  try {
+    await auth.api.signOut({ headers: await headers() });
+  } catch {
+    // No active session — aman untuk lanjut
+  }
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email: syntheticEmail(parsed.data.username),
-    password: parsed.data.password,
-  });
-
-  if (error) {
+  let result;
+  try {
+    result = await auth.api.signInUsername({
+      body: { username: parsed.data.username, password: parsed.data.password },
+      headers: await headers(),
+    });
+  } catch {
     return { error: "Nama pengguna atau kata sandi salah." };
   }
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Gagal memuat sesi." };
+  if (!result || !("user" in result) || !result.user) {
+    return { error: "Nama pengguna atau kata sandi salah." };
+  }
 
   const [profile] = await db
     .select({ role: profiles.role })
     .from(profiles)
-    .where(eq(profiles.id, user.id))
+    .where(eq(profiles.id, result.user.id))
     .limit(1);
 
   if (profile?.role && profile.role !== "member") {
@@ -62,6 +70,9 @@ export async function signIn(
   redirect("/profil");
 }
 
+/**
+ * Admin sign in — sama dengan signIn tapi reject kalau role = member.
+ */
 export async function adminSignIn(
   _prev: AuthState,
   formData: FormData,
@@ -75,53 +86,58 @@ export async function adminSignIn(
     return { fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
-  const supabase = await createClient();
-  // Drop sesi lama dulu agar tidak bentrok dengan tab lain.
-  await supabase.auth.signOut();
+  try {
+    await auth.api.signOut({ headers: await headers() });
+  } catch {
+    // ignore
+  }
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email: syntheticEmail(parsed.data.username),
-    password: parsed.data.password,
-  });
-
-  if (error) {
+  let result;
+  try {
+    result = await auth.api.signInUsername({
+      body: { username: parsed.data.username, password: parsed.data.password },
+      headers: await headers(),
+    });
+  } catch {
     return { error: "Username atau password salah." };
   }
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Gagal memuat sesi." };
+  if (!result || !("user" in result) || !result.user) {
+    return { error: "Username atau password salah." };
+  }
 
   const [profile] = await db
     .select({ role: profiles.role })
     .from(profiles)
-    .where(eq(profiles.id, user.id))
+    .where(eq(profiles.id, result.user.id))
     .limit(1);
 
   if (!profile || profile.role === "member") {
-    await supabase.auth.signOut();
+    // Sign out karena ini akun non-admin mencoba akses admin area
+    try {
+      await auth.api.signOut({ headers: await headers() });
+    } catch {
+      // ignore
+    }
     return { error: "Akun ini tidak memiliki akses admin." };
   }
 
   redirect("/admin/dashboard");
 }
 
-function describeSupabaseError(err: unknown): string {
+function describeBetterAuthError(err: unknown): string {
   if (!err) return "Unknown error (no details returned).";
   if (typeof err === "string") return err;
   if (err instanceof Error) {
     const anyErr = err as Error & {
       status?: number;
       code?: string;
-      error_code?: string;
-      error_description?: string;
-      hint?: string;
+      body?: { message?: string; code?: string };
     };
     const parts: string[] = [];
     if (anyErr.message) parts.push(anyErr.message);
-    if (anyErr.error_description) parts.push(`desc=${anyErr.error_description}`);
-    if (anyErr.error_code) parts.push(`code=${anyErr.error_code}`);
-    if (anyErr.code) parts.push(`status=${anyErr.code}`);
-    if (anyErr.hint) parts.push(`hint=${anyErr.hint}`);
+    if (anyErr.body?.message) parts.push(`msg=${anyErr.body.message}`);
+    if (anyErr.body?.code) parts.push(`code=${anyErr.body.code}`);
     if (anyErr.status !== undefined) parts.push(`http=${anyErr.status}`);
     return parts.length > 0 ? parts.join(" | ") : err.toString();
   }
@@ -132,6 +148,10 @@ function describeSupabaseError(err: unknown): string {
   }
 }
 
+/**
+ * Sign up member via Better Auth `signUpEmail`, sehingga hook database dan
+ * cookie session tetap berjalan seperti flow produksi.
+ */
 export async function signUp(
   _prev: AuthState,
   formData: FormData,
@@ -152,7 +172,7 @@ export async function signUp(
   const username = parsed.data.namaPengguna;
   const referralCode = parsed.data.kodeUndangan;
 
-  // Validasi kode undangan harus ada di tabel profiles (admin/leader/staff)
+  // Validasi kode undangan harus ada di tabel profiles
   const [staff] = await db
     .select({ id: profiles.id, username: profiles.username })
     .from(profiles)
@@ -163,7 +183,7 @@ export async function signUp(
     return { fieldErrors: { kodeUndangan: ["Kode undangan tidak valid."] } };
   }
 
-  // Cek username unik sebelum signUp
+  // Cek username unik
   const [existing] = await db
     .select({ id: profiles.id })
     .from(profiles)
@@ -174,154 +194,66 @@ export async function signUp(
     return { fieldErrors: { namaPengguna: ["Nama pengguna sudah dipakai."] } };
   }
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    console.error("[signUp] Missing Supabase env vars", {
-      hasUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
-      hasServiceKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-    });
-    return {
-      error:
-        "Konfigurasi server belum lengkap (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY). Hubungi admin.",
-    };
+  // Drop sesi lama
+  try {
+    await auth.api.signOut({ headers: await headers() });
+  } catch {
+    // ignore
   }
 
-  const supabase = await createClient();
-  const admin = createAdminClient();
-  // Drop sesi lama dulu agar tidak bentrok dengan tab lain.
-  // (signOut di sini jalan di server action, bukan server component, jadi
-  // cookie writable dan setAll() berhasil menghapus cookie lama.)
-  await supabase.auth.signOut();
-
-  // 1. Create user via admin client with email_confirm: true
-  //    → trigger handle_new_user() otomatis insert ke public.profiles
-  let created: Awaited<ReturnType<typeof admin.auth.admin.createUser>>["data"];
-  let createError: Awaited<ReturnType<typeof admin.auth.admin.createUser>>["error"];
+  let createdUser;
   try {
-    const result = await admin.auth.admin.createUser({
-      email: syntheticEmail(username),
-      password: parsed.data.kataSandi,
-      email_confirm: true,
-      user_metadata: {
+    createdUser = await auth.api.signUpEmail({
+      headers: await headers(),
+      body: {
+        email: syntheticEmail(username),
+        password: parsed.data.kataSandi,
+        name: username,
         username,
-        role: "member",
-        referral_code: referralCode,
-        withdraw_password_hash: parsed.data.sandiPenarikan,
       },
     });
-    created = result.data;
-    createError = result.error;
-  } catch (e) {
-    // Exception synchronous (mis. network/SDK bug) — tangkap agar bisa ditampilkan.
-    console.error("[signUp] createUser threw:", e);
-    return { error: "Gagal membuat akun: " + describeSupabaseError(e) };
+  } catch (error) {
+    console.error("[signUp] createUser error:", { username, error });
+    return { error: describeBetterAuthError(error) };
   }
 
-  if (createError || !created?.user) {
-    // Log full error server-side agar bisa di-inspect di Vercel logs.
-    console.error("[signUp] createUser error:", {
-      username,
-      referralCode,
-      createError,
-      created,
-    });
-    const detail = describeSupabaseError(createError);
-    // Kemungkinan duplicate email
-    const errMsg = createError?.message?.toLowerCase() ?? "";
-    const errDesc =
-      (createError as { error_description?: string } | null)
-        ?.error_description?.toLowerCase() ?? "";
-    if (
-      errMsg.includes("already") ||
-      errDesc.includes("already") ||
-      (createError as { code?: string } | null)?.code === "email_exists"
-    ) {
-      // Auto-recovery: kalau user ada di auth.users tapi tidak punya profile
-      // (orphan dari percobaan register yang gagal karena trigger error),
-      // hapus dan retry sekali.
-      const { data: list } = await admin.auth.admin.listUsers();
-      const orphan = list?.users?.find(
-        (u) => u.email?.toLowerCase() === syntheticEmail(username),
-      );
-      if (orphan) {
-        const { data: existingProfile } = await admin
-          .from("profiles")
-          .select("id")
-          .eq("id", orphan.id)
-          .maybeSingle();
-        if (!existingProfile) {
-          console.warn(
-            "[signUp] found orphan auth.users without profile, deleting and retrying:",
-            orphan.id,
-          );
-          await admin.auth.admin.deleteUser(orphan.id);
-          // Retry sekali
-          const retry = await admin.auth.admin.createUser({
-            email: syntheticEmail(username),
-            password: parsed.data.kataSandi,
-            email_confirm: true,
-            user_metadata: {
-              username,
-              role: "member",
-              referral_code: referralCode,
-              withdraw_password_hash: parsed.data.sandiPenarikan,
-            },
-          });
-          if (retry.error || !retry.data?.user) {
-            console.error("[signUp] retry createUser error:", retry.error);
-            return {
-              fieldErrors: { namaPengguna: ["Nama pengguna sudah dipakai."] },
-              error:
-                "Nama pengguna sudah dipakai dan auto-recovery gagal: " +
-                describeSupabaseError(retry.error),
-            };
-          }
-          created = retry.data;
-          createError = null;
-        } else {
-          return {
-            fieldErrors: { namaPengguna: ["Nama pengguna sudah dipakai."] },
-            error: `Nama pengguna sudah dipakai. (${detail})`,
-          };
-        }
-      } else {
-        return {
-          fieldErrors: { namaPengguna: ["Nama pengguna sudah dipakai."] },
-          error: `Nama pengguna sudah dipakai. (${detail})`,
-        };
-      }
-    } else {
-      return { error: detail };
-    }
+  if (!createdUser?.user) {
+    return { error: "Gagal membuat akun baru." };
   }
 
-  // 2. Sign in dengan anon client (email sudah confirmed, jadi tidak butuh
-  //    email confirmation lagi). Ini yang nge-set session cookies.
-  const { error: signInError } = await supabase.auth.signInWithPassword({
-    email: syntheticEmail(username),
-    password: parsed.data.kataSandi,
-  });
-
-  if (signInError) {
-    console.error("[signUp] signIn error:", signInError);
-    return {
-      error:
-        "Akun berhasil dibuat, tetapi login otomatis gagal: " +
-        describeSupabaseError(signInError),
-    };
-  }
+  // 2. Set withdraw_password_hash di profile (sandi penarikan terpisah
+  //    dari password login — di-hash via pgcrypto crypt()).
+  const { sql } = await import("drizzle-orm");
+  await db.execute(
+    sql`
+      UPDATE profiles
+      SET
+        referral_code = ${referralCode},
+        referred_by = ${staff.id},
+        withdraw_password_hash = crypt(${parsed.data.sandiPenarikan}, gen_salt('bf', 10)),
+        updated_at = now()
+      WHERE id = ${createdUser.user.id}
+    `,
+  );
 
   revalidatePath("/profil");
   redirect("/profil");
 }
 
 export async function signOut() {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
+  try {
+    await auth.api.signOut({ headers: await headers() });
+  } catch {
+    // ignore
+  }
   redirect("/login");
 }
 
 export async function adminSignOut() {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
+  try {
+    await auth.api.signOut({ headers: await headers() });
+  } catch {
+    // ignore
+  }
   redirect("/admin/login");
 }

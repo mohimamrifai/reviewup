@@ -135,6 +135,10 @@ function EditAdminModal({
             />
           </div>
 
+          {currentRole === "admin_staff" && (
+            <input type="hidden" name="newLeaderId" value={admin.leaderId ?? ""} />
+          )}
+
           {canEditRole && currentRole === "admin_staff" && (
             <div>
               <label

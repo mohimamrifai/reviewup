@@ -6,11 +6,14 @@ import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { products } from "@/lib/db/schema";
-import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  attachUploadedFileToProduct,
+  deleteUploadedFileByUrl,
+  isAllowedImageMime,
+  saveUploadedFile,
+} from "@/lib/storage/local-storage";
 
-const PRODUCTS_BUCKET = "products";
-const MAX_SIZE = 2 * 1024 * 1024; // 2MB (sesuai limit bucket)
-const ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+const MAX_SIZE = 2 * 1024 * 1024; // 2MB
 
 const productSchema = z.object({
   name: z
@@ -43,33 +46,20 @@ async function processImageUpload(
   if (file.size > MAX_SIZE) {
     return { ok: false, error: "Ukuran file maksimal 2MB." };
   }
-  if (!ALLOWED_MIME.includes(file.type)) {
+  if (!isAllowedImageMime(file.type)) {
     return { ok: false, error: "Format harus JPG, PNG, atau WEBP." };
   }
 
-  const supabase = createAdminClient();
-  const ext = (file.type.split("/")[1] ?? "jpg").replace("jpeg", "jpg");
-  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-  const { error: uploadError } = await supabase.storage
-    .from(PRODUCTS_BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: false });
-
-  if (uploadError) {
-    return { ok: false, error: `Gagal upload gambar: ${uploadError.message}` };
-  }
-
-  const { data: urlData } = supabase.storage
-    .from(PRODUCTS_BUCKET)
-    .getPublicUrl(path);
+  const saved = await saveUploadedFile({
+    file,
+    category: "products",
+    visibility: "public",
+  });
 
   // Cleanup best-effort: hapus file lama kalau ada
-  if (oldPath) {
-    const oldKey = oldPath.split(`${PRODUCTS_BUCKET}/`)[1] ?? oldPath;
-    await supabase.storage.from(PRODUCTS_BUCKET).remove([oldKey]);
-  }
+  await deleteUploadedFileByUrl(oldPath);
 
-  return { ok: true, publicUrl: urlData.publicUrl, path };
+  return { ok: true, publicUrl: saved.url, path: saved.id };
 }
 
 export async function createProduct(
@@ -93,6 +83,20 @@ export async function createProduct(
       return { fieldErrors: { image: [upload.error] } };
     }
     imageUrl = upload.publicUrl;
+    const [createdProduct] = await db
+      .insert(products)
+      .values({
+        name: parsed.data.name,
+        price: parsed.data.price.toFixed(2),
+        imageUrl,
+        isActive: parsed.data.isActive,
+      })
+      .returning({ id: products.id });
+
+    await attachUploadedFileToProduct(upload.path, createdProduct.id);
+    revalidatePath("/admin/product");
+    revalidatePath("/");
+    return {};
   }
 
   await db.insert(products).values({
@@ -140,6 +144,7 @@ export async function updateProduct(
       return { fieldErrors: { image: [upload.error] } };
     }
     imageUrl = upload.publicUrl;
+    await attachUploadedFileToProduct(upload.path, id);
   }
 
   await db
@@ -174,9 +179,7 @@ export async function deleteProduct(
     .where(eq(products.id, id))
     .limit(1);
   if (row?.imageUrl) {
-    const supabase = createAdminClient();
-    const key = row.imageUrl.split(`${PRODUCTS_BUCKET}/`)[1] ?? row.imageUrl;
-    await supabase.storage.from(PRODUCTS_BUCKET).remove([key]);
+    await deleteUploadedFileByUrl(row.imageUrl);
   }
 
   await db.delete(products).where(eq(products.id, id));

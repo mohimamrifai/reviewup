@@ -2,12 +2,13 @@
 
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
 
 import { assertCanAccessMember, getScope } from "@/lib/access";
+import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { auditLogs, profiles } from "@/lib/db/schema";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type MemberToolState = {
@@ -254,7 +255,7 @@ export async function adjustMemberBalance(
   return { success: true, message: "Saldo anggota berhasil diperbarui." };
 }
 
-// 4. Reset password login (auth.users)
+// 4. Reset password login
 const resetLoginSchema = z.object({
   memberId: z.string().uuid("ID anggota tidak valid."),
   newPassword: z
@@ -288,13 +289,16 @@ export async function resetMemberLoginPassword(
     return handleAuthError(e);
   }
 
-  const adminClient = createAdminClient();
-  const { error } = await adminClient.auth.admin.updateUserById(
-    parsed.data.memberId,
-    { password: parsed.data.newPassword },
-  );
-  if (error) {
-    return { error: `Gagal memperbarui kata sandi: ${error.message}` };
+  try {
+    await auth.api.setUserPassword({
+      headers: await headers(),
+      body: {
+        userId: parsed.data.memberId,
+        newPassword: parsed.data.newPassword,
+      },
+    });
+  } catch (error) {
+    return { error: `Gagal memperbarui kata sandi: ${(error as Error).message}` };
   }
 
   await db.insert(auditLogs).values({
@@ -442,3 +446,9 @@ export async function setMemberWithdrawLock(
       : "Penarikan anggota berhasil dibuka.",
   };
 }
+
+/**
+ * Backward-compatible alias untuk test/unit lama.
+ * Behaviour sama dengan `setMemberWithdrawLock`.
+ */
+export const setMemberStatus = setMemberWithdrawLock;
