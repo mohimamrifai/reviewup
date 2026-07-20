@@ -28,7 +28,19 @@ export default async function AdminDepositBankPage() {
     }
   }
 
-  const rows = await db
+  const scope = await getScope(user.id);
+  if (!scope) redirect("/admin/login");
+
+  // Query rekening dengan join ke profiles untuk nama leader.
+  // Super admin: semua rekening.
+  // Leader: hanya rekening tim-nya (leader_id = actor.id) — rekening global (NULL)
+  // TIDAK ditampilkan di halaman leader.
+  const where =
+    scope.role === "super_admin"
+      ? undefined
+      : eq(depositBankAccounts.leaderId, scope.actorId);
+
+  const baseQuery = db
     .select({
       id: depositBankAccounts.id,
       bankName: depositBankAccounts.bankName,
@@ -36,9 +48,25 @@ export default async function AdminDepositBankPage() {
       accountNumber: depositBankAccounts.accountNumber,
       notes: depositBankAccounts.notes,
       isActive: depositBankAccounts.isActive,
+      leaderId: depositBankAccounts.leaderId,
+      leaderUsername: profiles.username,
     })
     .from(depositBankAccounts)
+    .leftJoin(profiles, eq(profiles.id, depositBankAccounts.leaderId))
     .orderBy(desc(depositBankAccounts.createdAt));
+
+  const rows = where ? await baseQuery.where(where) : await baseQuery;
+
+  // Untuk super admin, ambil daftar leader untuk dropdown "Untuk Tim" di form.
+  let leaderOptions: { id: string; username: string }[] = [];
+  if (scope.role === "super_admin") {
+    const leaders = await db
+      .select({ id: profiles.id, username: profiles.username })
+      .from(profiles)
+      .where(eq(profiles.role, "admin_leader"))
+      .orderBy(profiles.username);
+    leaderOptions = leaders;
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
@@ -47,9 +75,9 @@ export default async function AdminDepositBankPage() {
           Rekening Tujuan Deposit
         </h1>
         <p className="mt-1 text-[11px] text-zinc-600 sm:text-xs">
-          Daftar rekening yang ditampilkan ke member di halaman deposit. Hanya
-          rekening berstatus Aktif yang akan muncul. Nonaktifkan rekening
-          untuk menyembunyikan tanpa menghapus.
+          {scope.role === "super_admin"
+            ? "Daftar rekening yang ditampilkan ke member. Setiap leader bisa punya rekening sendiri-sendiri, atau gunakan rekening global untuk semua."
+            : "Daftar rekening untuk tim Anda. Hanya rekening untuk tim ini yang ditampilkan."}
         </p>
       </div>
 
@@ -61,7 +89,16 @@ export default async function AdminDepositBankPage() {
           accountNumber: r.accountNumber,
           notes: r.notes,
           isActive: r.isActive,
+          leaderId: r.leaderId,
+          leaderUsername: r.leaderUsername,
         }))}
+        actorRole={scope.role}
+        leaderOptions={leaderOptions}
+        currentLeaderUsername={
+          scope.role === "admin_leader"
+            ? leaderOptions.find((l) => l.id === scope.actorId)?.username ?? null
+            : null
+        }
       />
     </div>
   );

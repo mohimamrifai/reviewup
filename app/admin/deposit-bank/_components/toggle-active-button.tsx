@@ -13,6 +13,7 @@ export default function ToggleActiveButton({ account }: { account: Account }) {
   function onToggle() {
     const fd = new FormData();
     fd.set("accountId", String(account.id));
+    fd.set("isActive", String(!account.isActive));
     startTransition(() => action(fd));
   }
 

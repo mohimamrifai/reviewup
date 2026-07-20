@@ -205,3 +205,43 @@ export function assertCanAccessMember(
     throw new Error("FORBIDDEN_SCOPE");
   }
 }
+
+/**
+ * Cek apakah actor boleh memanage (edit/hapus/toggle) rekening deposit
+ * tertentu berdasarkan `leader_id` rekening.
+ *
+ * Aturan:
+ * - super_admin: selalu boleh.
+ * - admin_leader dengan override `depositBankCrud`: hanya rekening dengan
+ *   `leader_id = leader.id`. TIDAK boleh rekening global (NULL).
+ * - lainnya: tidak boleh.
+ */
+export function canManageDepositBankAccount(
+  scope: Scope,
+  accountLeaderId: string | null,
+): boolean {
+  if (scope.role === "super_admin") return true;
+
+  if (
+    scope.role === "admin_leader" &&
+    scope.overrides.depositBankCrud === true
+  ) {
+    // Leader hanya boleh manage rekening tim-nya sendiri (leader_id = leader.id).
+    // NULL (global) hanya super admin yang boleh.
+    return accountLeaderId !== null && accountLeaderId === scope.actorId;
+  }
+
+  return false;
+}
+
+/**
+ * Throw error kalau scope tidak boleh memanage rekening deposit.
+ */
+export function assertCanManageDepositBankAccount(
+  scope: Scope,
+  accountLeaderId: string | null,
+): void {
+  if (!canManageDepositBankAccount(scope, accountLeaderId)) {
+    throw new Error("FORBIDDEN_SCOPE");
+  }
+}

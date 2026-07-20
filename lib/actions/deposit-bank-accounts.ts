@@ -2,254 +2,240 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath, refresh } from "next/cache";
-import { z } from "zod";
 
-import { type Scope, getScope } from "@/lib/access";
+import {
+  assertCanManageDepositBankAccount,
+  canManageDepositBankAccount,
+  getScope,
+} from "@/lib/access";
+import { getCurrentUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { auditLogs, depositBankAccounts } from "@/lib/db/schema";
-import { getCurrentUser } from "@/lib/auth/session";
-
-const baseSchema = z.object({
-  bankName: z
-    .string()
-    .trim()
-    .min(2, "Nama bank minimal 2 karakter.")
-    .max(60, "Nama bank maksimal 60 karakter."),
-  accountName: z
-    .string()
-    .trim()
-    .min(2, "Nama pemilik minimal 2 karakter.")
-    .max(80, "Nama pemilik maksimal 80 karakter."),
-  accountNumber: z
-    .string()
-    .trim()
-    .min(3, "Nomor rekening minimal 3 digit.")
-    .max(40, "Nomor rekening maksimal 40 digit.")
-    .regex(/^[0-9\-\s]+$/, "Nomor rekening hanya angka, spasi, atau strip."),
-  notes: z.string().trim().max(200).optional(),
-});
-
-const addSchema = baseSchema;
-const updateSchema = baseSchema.extend({
-  accountId: z.coerce
-    .number()
-    .int()
-    .positive("ID rekening tidak valid."),
-});
-
-const toggleSchema = z.object({
-  accountId: z.coerce.number().int().positive("ID rekening tidak valid."),
-});
-
-const deleteSchema = z.object({
-  accountId: z.coerce.number().int().positive("ID rekening tidak valid."),
-});
-
-export type DepositBankAccountState = {
-  error?: string;
-  fieldErrors?: Partial<Record<string, string[]>>;
-  success?: boolean;
-  message?: string;
-};
+import type { DepositBankAccountState } from "./deposit-bank-accounts-types";
 
 /**
- * Pemeriksaan peran + override untuk aksi CRUD deposit bank accounts.
- * Yang boleh: super_admin (selalu), atau siapa pun yang punya override
- * `depositBankCrud = true` di `access_overrides` (termasuk admin_leader).
- * Role `admin_leader`/`admin_staff` tanpa override ditolak.
+ * Helper: ambil scope + guard ownership untuk rekening yang sudah ada.
+ * Return null kalau tidak ditemukan atau tidak boleh diakses.
  */
-async function requireBankAccountManager(): Promise<{ actorId: string; scope: Scope }> {
-  const user = await getCurrentUser();
-  if (!user) throw new Error("UNAUTHENTICATED");
-
-  const scope = await getScope(user.id);
-  if (!scope) throw new Error("FORBIDDEN");
-
-  const isSuper = scope.role === "super_admin";
-  const hasOverride = scope.overrides.depositBankCrud === true;
-
-  if (!isSuper && !hasOverride) {
-    throw new Error("FORBIDDEN");
-  }
-  return { actorId: user.id, scope };
-}
-
-function handleAuthError(e: unknown): DepositBankAccountState {
-  const msg = (e as Error).message;
-  if (msg === "FORBIDDEN")
-    return { error: "Anda tidak memiliki akses untuk aksi ini." };
-  return { error: "Sesi habis, silakan login ulang." };
+async function loadAccountForManage(accountId: number) {
+  const [row] = await db
+    .select()
+    .from(depositBankAccounts)
+    .where(eq(depositBankAccounts.id, accountId))
+    .limit(1);
+  return row ?? null;
 }
 
 export async function addDepositBankAccount(
   _prev: DepositBankAccountState,
   formData: FormData,
 ): Promise<DepositBankAccountState> {
-  let actorId: string;
-  try {
-    ({ actorId } = await requireBankAccountManager());
-  } catch (e) {
-    return handleAuthError(e);
+  const user = await getCurrentUser();
+  if (!user) return { error: "Sesi habis, silakan login ulang." };
+
+  const scope = await getScope(user.id);
+  if (!scope) return { error: "Sesi tidak valid." };
+
+  // Validasi role: super_admin atau admin_leader dengan depositBankCrud.
+  if (scope.role === "super_admin") {
+    // ok
+  } else if (
+    scope.role === "admin_leader" &&
+    scope.overrides.depositBankCrud === true
+  ) {
+    // ok
+  } else {
+    return { error: "Anda tidak memiliki akses untuk menambah rekening." };
   }
 
-  const parsed = addSchema.safeParse({
-    bankName: formData.get("bankName"),
-    accountName: formData.get("accountName"),
-    accountNumber: formData.get("accountNumber"),
-    notes: formData.get("notes") || undefined,
-  });
-  if (!parsed.success) {
-    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  const bankName = String(formData.get("bankName") ?? "").trim();
+  const accountName = String(formData.get("accountName") ?? "").trim();
+  const accountNumber = String(formData.get("accountNumber") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  // Tentukan leader_id sesuai role.
+  // Super admin: baca dari form (kosong/empty = NULL = global).
+  // Leader: otomatis set ke scope.actorId (tidak baca dari form).
+  let leaderId: string | null = null;
+  if (scope.role === "super_admin") {
+    const formLeader = String(formData.get("leaderId") ?? "").trim();
+    leaderId = formLeader === "" ? null : formLeader;
+  } else {
+    // admin_leader: paksa ke dirinya sendiri
+    leaderId = scope.actorId;
   }
 
-  await db.insert(depositBankAccounts).values({
-    bankName: parsed.data.bankName,
-    accountName: parsed.data.accountName,
-    accountNumber: parsed.data.accountNumber,
-    notes: parsed.data.notes ?? null,
-    createdBy: actorId,
-  });
+  // Validasi field minimal
+  const fieldErrors: DepositBankAccountState["fieldErrors"] = {};
+  if (!bankName) fieldErrors.bankName = ["Nama bank wajib diisi."];
+  if (!accountName) fieldErrors.accountName = ["Nama pemilik wajib diisi."];
+  if (!accountNumber) fieldErrors.accountNumber = ["Nomor rekening wajib diisi."];
+  if (Object.keys(fieldErrors).length > 0) {
+    return { fieldErrors };
+  }
 
-  await db.insert(auditLogs).values({
-    actorId,
-    targetId: null,
-    action: "deposit_bank_created",
-    note: `Rekening tujuan ${parsed.data.bankName} ditambahkan.`,
-  });
+  const [created] = await db
+    .insert(depositBankAccounts)
+    .values({
+      bankName,
+      accountName,
+      accountNumber,
+      notes,
+      isActive: true,
+      leaderId,
+      createdBy: user.id,
+    })
+    .returning({ id: depositBankAccounts.id });
+
+  if (created) {
+    await db.insert(auditLogs).values({
+      actorId: user.id,
+      targetId: null,
+      action: "DEPOSIT_BANK_CREATED",
+      note: `account_id=${created.id}${leaderId ? `;leader_id=${leaderId}` : ";global"}`,
+    });
+  }
 
   revalidatePath("/admin/deposit-bank");
-  revalidatePath("/recharge");
   refresh();
-  return { success: true, message: "Rekening tujuan berhasil ditambahkan." };
+  return { success: true };
 }
 
 export async function updateDepositBankAccount(
   _prev: DepositBankAccountState,
   formData: FormData,
 ): Promise<DepositBankAccountState> {
-  let actorId: string;
-  try {
-    ({ actorId } = await requireBankAccountManager());
-  } catch (e) {
-    return handleAuthError(e);
+  const user = await getCurrentUser();
+  if (!user) return { error: "Sesi habis, silakan login ulang." };
+
+  const scope = await getScope(user.id);
+  if (!scope) return { error: "Sesi tidak valid." };
+
+  const accountId = Number(formData.get("accountId"));
+  if (!Number.isInteger(accountId) || accountId <= 0) {
+    return { error: "ID rekening tidak valid." };
   }
 
-  const parsed = updateSchema.safeParse({
-    accountId: formData.get("accountId"),
-    bankName: formData.get("bankName"),
-    accountName: formData.get("accountName"),
-    accountNumber: formData.get("accountNumber"),
-    notes: formData.get("notes") || undefined,
-  });
-  if (!parsed.success) {
-    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  // Ambil rekening existing + cek ownership.
+  const existing = await loadAccountForManage(accountId);
+  if (!existing) return { error: "Rekening tidak ditemukan." };
+  try {
+    assertCanManageDepositBankAccount(scope, existing.leaderId);
+  } catch {
+    return { error: "Anda tidak memiliki akses untuk mengubah rekening ini." };
+  }
+
+  const bankName = String(formData.get("bankName") ?? "").trim();
+  const accountName = String(formData.get("accountName") ?? "").trim();
+  const accountNumber = String(formData.get("accountNumber") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  // Leader tidak boleh ubah leader_id (paksa tetap miliknya).
+  // Super admin boleh ganti: baca dari form, kosong = global.
+  let leaderId: string | null = existing.leaderId;
+  if (scope.role === "super_admin") {
+    const formLeader = String(formData.get("leaderId") ?? "").trim();
+    leaderId = formLeader === "" ? null : formLeader;
+  }
+
+  const fieldErrors: DepositBankAccountState["fieldErrors"] = {};
+  if (!bankName) fieldErrors.bankName = ["Nama bank wajib diisi."];
+  if (!accountName) fieldErrors.accountName = ["Nama pemilik wajib diisi."];
+  if (!accountNumber) fieldErrors.accountNumber = ["Nomor rekening wajib diisi."];
+  if (Object.keys(fieldErrors).length > 0) {
+    return { fieldErrors };
   }
 
   await db
     .update(depositBankAccounts)
-    .set({
-      bankName: parsed.data.bankName,
-      accountName: parsed.data.accountName,
-      accountNumber: parsed.data.accountNumber,
-      notes: parsed.data.notes ?? null,
-      updatedAt: new Date(),
-    })
-    .where(eq(depositBankAccounts.id, parsed.data.accountId));
+    .set({ bankName, accountName, accountNumber, notes, leaderId })
+    .where(eq(depositBankAccounts.id, accountId));
 
   await db.insert(auditLogs).values({
-    actorId,
+    actorId: user.id,
     targetId: null,
-    action: "deposit_bank_updated",
-    note: `Rekening tujuan #${parsed.data.accountId} diperbarui.`,
+    action: "DEPOSIT_BANK_UPDATED",
+    note: `account_id=${accountId};leader_id=${leaderId ?? "global"}`,
   });
 
   revalidatePath("/admin/deposit-bank");
-  revalidatePath("/recharge");
   refresh();
-  return { success: true, message: "Rekening tujuan berhasil diperbarui." };
+  return { success: true };
 }
 
 export async function deleteDepositBankAccount(
   _prev: DepositBankAccountState,
   formData: FormData,
 ): Promise<DepositBankAccountState> {
-  let actorId: string;
-  try {
-    ({ actorId } = await requireBankAccountManager());
-  } catch (e) {
-    return handleAuthError(e);
+  const user = await getCurrentUser();
+  if (!user) return { error: "Sesi habis, silakan login ulang." };
+
+  const scope = await getScope(user.id);
+  if (!scope) return { error: "Sesi tidak valid." };
+
+  const accountId = Number(formData.get("accountId"));
+  if (!Number.isInteger(accountId) || accountId <= 0) {
+    return { error: "ID rekening tidak valid." };
   }
 
-  const parsed = deleteSchema.safeParse({
-    accountId: formData.get("accountId"),
-  });
-  if (!parsed.success) {
-    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  const existing = await loadAccountForManage(accountId);
+  if (!existing) return { error: "Rekening tidak ditemukan." };
+  try {
+    assertCanManageDepositBankAccount(scope, existing.leaderId);
+  } catch {
+    return { error: "Anda tidak memiliki akses untuk mengubah rekening ini." };
   }
 
   await db
     .delete(depositBankAccounts)
-    .where(eq(depositBankAccounts.id, parsed.data.accountId));
+    .where(eq(depositBankAccounts.id, accountId));
 
   await db.insert(auditLogs).values({
-    actorId,
-    targetId: null,
-    action: "deposit_bank_deleted",
-    note: `Rekening tujuan #${parsed.data.accountId} dihapus.`,
+    actorId: user.id,
+    action: "DEPOSIT_BANK_DELETED",
+    targetId: accountId.toString(),
   });
 
   revalidatePath("/admin/deposit-bank");
-  revalidatePath("/recharge");
   refresh();
-  return { success: true, message: "Rekening tujuan berhasil dihapus." };
+  return { success: true };
 }
 
 export async function toggleDepositBankAccountActive(
   _prev: DepositBankAccountState,
   formData: FormData,
 ): Promise<DepositBankAccountState> {
-  let actorId: string;
-  try {
-    ({ actorId } = await requireBankAccountManager());
-  } catch (e) {
-    return handleAuthError(e);
+  const user = await getCurrentUser();
+  if (!user) return { error: "Sesi habis, silakan login ulang." };
+
+  const scope = await getScope(user.id);
+  if (!scope) return { error: "Sesi tidak valid." };
+
+  const accountId = Number(formData.get("accountId"));
+  const isActive = formData.get("isActive") === "true";
+  if (!Number.isInteger(accountId) || accountId <= 0) {
+    return { error: "ID rekening tidak valid." };
   }
 
-  const parsed = toggleSchema.safeParse({
-    accountId: formData.get("accountId"),
-  });
-  if (!parsed.success) {
-    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  const existing = await loadAccountForManage(accountId);
+  if (!existing) return { error: "Rekening tidak ditemukan." };
+  if (!canManageDepositBankAccount(scope, existing.leaderId)) {
+    return { error: "Anda tidak memiliki akses untuk mengubah rekening ini." };
   }
-
-  const [current] = await db
-    .select({ isActive: depositBankAccounts.isActive })
-    .from(depositBankAccounts)
-    .where(eq(depositBankAccounts.id, parsed.data.accountId))
-    .limit(1);
-  if (!current) return { error: "Rekening tidak ditemukan." };
 
   await db
     .update(depositBankAccounts)
-    .set({ isActive: !current.isActive, updatedAt: new Date() })
-    .where(eq(depositBankAccounts.id, parsed.data.accountId));
+    .set({ isActive })
+    .where(eq(depositBankAccounts.id, accountId));
 
   await db.insert(auditLogs).values({
-    actorId,
+    actorId: user.id,
     targetId: null,
-    action: "deposit_bank_toggled",
-    note: current.isActive
-      ? `Rekening tujuan #${parsed.data.accountId} dinonaktifkan.`
-      : `Rekening tujuan #${parsed.data.accountId} diaktifkan.`,
+    action: isActive ? "DEPOSIT_BANK_ACTIVATED" : "DEPOSIT_BANK_DEACTIVATED",
+    note: `account_id=${accountId}`,
   });
 
   revalidatePath("/admin/deposit-bank");
-  revalidatePath("/recharge");
   refresh();
-  return {
-    success: true,
-    message: current.isActive
-      ? "Rekening di-nonaktifkan."
-      : "Rekening diaktifkan.",
-  };
+  return { success: true };
 }

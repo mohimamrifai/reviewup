@@ -3,29 +3,40 @@ import { Account, initialState, inputClass, useModalLifecycle } from "./deposit-
 import { useActionState, useEffect, useTransition } from "react";
 import { addDepositBankAccount, updateDepositBankAccount } from "@/lib/actions/deposit-bank-accounts";
 
+type Props = {
+  account: Account | null;
+  onClose: () => void;
+  onSaved: (msg: string) => void;
+  actorRole: "super_admin" | "admin_leader" | "admin_staff" | "member";
+  leaderOptions: { id: string; username: string }[];
+  currentLeaderUsername: string | null;
+};
+
 export default function AccountFormModal({
   account,
   onClose,
   onSaved,
-}: {
-  account: Account | null;
-  onClose: () => void;
-  onSaved: (msg: string) => void;
-}) {
+  actorRole,
+  leaderOptions,
+  currentLeaderUsername,
+}: Props) {
   const [state, action] = useActionState(
     account ? updateDepositBankAccount : addDepositBankAccount,
     initialState,
   );
   const [pending, startTransition] = useTransition();
 
-  // Pakai reference equality: `state === initialState` artinya action belum pernah dipanggil.
-  // Aman terhadap React StrictMode (double-invoke effect di dev).
+  // Tutup otomatis + panggil callback ke parent saat submit sukses.
   useEffect(() => {
     if (state === initialState) return;
-    if (state.success && state.message) onSaved(state.message);
-  }, [state, onSaved]);
+    if (state.success) {
+      onSaved(account ? "Rekening diperbarui." : "Rekening ditambahkan.");
+    }
+  }, [state, onSaved, account]);
 
   useModalLifecycle(onClose);
+
+  const isSuperAdmin = actorRole === "super_admin";
 
   return (
     <div
@@ -56,6 +67,37 @@ export default function AccountFormModal({
 
         <div className="space-y-3">
           {account && <input type="hidden" name="accountId" value={account.id} />}
+
+          {/* Field Untuk Tim: hanya super admin yang bisa pilih, leader auto. */}
+          {isSuperAdmin ? (
+            <div>
+              <label htmlFor="leaderId" className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs">
+                Untuk Tim
+              </label>
+              <select
+                id="leaderId"
+                name="leaderId"
+                defaultValue={account?.leaderId ?? ""}
+                disabled={pending}
+                className={inputClass}
+              >
+                <option value="">Global (untuk semua tim)</option>
+                {leaderOptions.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.username}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[10px] text-zinc-500 sm:text-[11px]">
+                Pilih leader tertentu, atau kosongkan untuk rekening global.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-md bg-indigo-50 px-3 py-2 text-[11px] text-indigo-800 sm:text-xs">
+              <span className="font-semibold">Otomatis untuk tim Anda:</span> @
+              {currentLeaderUsername ?? "—"}
+            </div>
+          )}
 
           <div>
             <label htmlFor="bankName" className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs">

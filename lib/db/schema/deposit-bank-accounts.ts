@@ -12,11 +12,22 @@ import {
 
 const authSchema = pgSchema("auth");
 const authUsers = authSchema.table("users", { id: uuid("id").primaryKey() });
+import { profiles } from "./profiles";
 
 /**
  * Rekening tujuan DEPOSIT (bukan rekening penarikan member).
  * Ditampilkan ke member di halaman `/recharge`.
- * Hanya admin leader & super admin yang bisa CRUD.
+ *
+ * Scoping per-leader: kolom `leader_id` (nullable) menentukan kepemilikan.
+ * - `leader_id = NULL` → rekening global, dilihat semua member.
+ * - `leader_id = <uuid leader>` → rekening hanya untuk anggota tim leader
+ *   tersebut (di mana `profiles.leader_id = leader.id`).
+ *
+ * Hak akses:
+ * - super_admin: CRUD semua rekening.
+ * - admin_leader (dengan override `depositBankCrud`): CRUD rekening tim-nya
+ *   sendiri (`leader_id = leader.id`); TIDAK boleh edit/hapus rekening NULL.
+ * - admin_staff: tidak punya akses ke halaman ini.
  */
 export const depositBankAccounts = pgTable(
   "deposit_bank_accounts",
@@ -27,6 +38,12 @@ export const depositBankAccounts = pgTable(
     accountNumber: text("account_number").notNull(),
     notes: text("notes"),
     isActive: boolean("is_active").notNull().default(true),
+    /**
+     * scoping per-leader. NULL = rekening global.
+     */
+    leaderId: uuid("leader_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
     createdBy: uuid("created_by").references(() => authUsers.id, {
       onDelete: "set null",
     }),
@@ -43,5 +60,6 @@ export const depositBankAccounts = pgTable(
       table.isActive,
       table.createdAt,
     ),
+    index("deposit_bank_accounts_leader_id_idx").on(table.leaderId),
   ],
 );

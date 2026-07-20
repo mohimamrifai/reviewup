@@ -17,7 +17,7 @@ export default function DeleteAccountModal({
 
   useEffect(() => {
     if (state === initialState) return;
-    if (state.success && state.message) onDeleted(state.message);
+    if (state.success) onDeleted("Rekening dihapus.");
   }, [state, onDeleted]);
 
   useModalLifecycle(onClose);
