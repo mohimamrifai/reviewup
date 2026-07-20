@@ -19,48 +19,6 @@ export default async function AdminTaskPage() {
   const memberIds = scope?.memberIds ?? null;
   const unrestricted = scope?.unrestricted ?? false;
 
-  // Ambil anggota yang relevan sesuai scope
-  let memberRows: { id: string; username: string; level: Level; status: string }[];
-  if (unrestricted) {
-    // Super admin: semua member
-    memberRows = await db
-      .select({
-        id: profiles.id,
-        username: profiles.username,
-        level: profiles.level,
-        status: profiles.status,
-      })
-      .from(profiles)
-      .where(eq(profiles.role, "member"))
-      .orderBy(profiles.username);
-  } else if (memberIds && memberIds.length > 0) {
-    // Staff/Leader: hanya member di scope
-    memberRows = await db
-      .select({
-        id: profiles.id,
-        username: profiles.username,
-        level: profiles.level,
-        status: profiles.status,
-      })
-      .from(profiles)
-      .where(inArray(profiles.id, memberIds))
-      .orderBy(profiles.username);
-  } else {
-    memberRows = [];
-  }
-
-  // Ambil produk aktif
-  const productRows = await db
-    .select({
-      id: products.id,
-      name: products.name,
-      price: products.price,
-      imageUrl: products.imageUrl,
-      isActive: products.isActive,
-    })
-    .from(products)
-    .orderBy(products.name);
-
   // Query tugas nyata + request pending dengan filter scope
   const taskWhere = unrestricted
     ? undefined
@@ -73,6 +31,46 @@ export default async function AdminTaskPage() {
     : memberIds && memberIds.length > 0
       ? inArray(taskRequests.memberId, memberIds)
       : eq(taskRequests.memberId, "00000000-0000-0000-0000-000000000000");
+
+  const memberRowsPromise = unrestricted
+    ? db
+        .select({
+          id: profiles.id,
+          username: profiles.username,
+          level: profiles.level,
+          status: profiles.status,
+        })
+        .from(profiles)
+        .where(eq(profiles.role, "member"))
+        .orderBy(profiles.username)
+    : memberIds && memberIds.length > 0
+      ? db
+          .select({
+            id: profiles.id,
+            username: profiles.username,
+            level: profiles.level,
+            status: profiles.status,
+          })
+          .from(profiles)
+          .where(inArray(profiles.id, memberIds))
+          .orderBy(profiles.username)
+      : Promise.resolve([] as {
+          id: string;
+          username: string;
+          level: Level;
+          status: string;
+        }[]);
+
+  const productRowsPromise = db
+    .select({
+      id: products.id,
+      name: products.name,
+      price: products.price,
+      imageUrl: products.imageUrl,
+      isActive: products.isActive,
+    })
+    .from(products)
+    .orderBy(products.name);
 
   const baseTaskQuery = db
     .select({
@@ -113,7 +111,9 @@ export default async function AdminTaskPage() {
     .from(taskRequests)
     .leftJoin(profiles, eq(taskRequests.memberId, profiles.id));
 
-  const [taskRows, requestRows] = await Promise.all([
+  const [memberRows, productRows, taskRows, requestRows] = await Promise.all([
+    memberRowsPromise,
+    productRowsPromise,
     taskWhere
       ? baseTaskQuery.where(taskWhere).orderBy(desc(tasks.createdAt))
       : baseTaskQuery.orderBy(desc(tasks.createdAt)),
@@ -123,7 +123,7 @@ export default async function AdminTaskPage() {
   ]);
 
   const rows = [...requestRows, ...taskRows].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
   );
 
   return (

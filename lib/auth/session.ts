@@ -9,7 +9,6 @@ import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
 
 const INTERNAL_USER_HEADER = "x-reviewup-user";
-const INTERNAL_PROFILE_HEADER = "x-reviewup-profile";
 
 type ForwardedUser = {
   id: string;
@@ -27,18 +26,6 @@ type ForwardedUser = {
   emailVerified?: boolean | null;
 };
 
-type ForwardedProfile = {
-  id: string;
-  role: (typeof profiles.$inferSelect)["role"];
-  accessOverrides: (typeof profiles.$inferSelect)["accessOverrides"];
-  referredBy: string | null;
-  leaderId: string | null;
-  username: string;
-  status: (typeof profiles.$inferSelect)["status"];
-  level: (typeof profiles.$inferSelect)["level"];
-  referralCode: string | null;
-};
-
 function parseForwardedHeader<T>(value: string | null): T | null {
   if (!value) return null;
   try {
@@ -53,9 +40,6 @@ const getForwardedAuthContext = cache(async () => {
   return {
     user: parseForwardedHeader<ForwardedUser>(
       requestHeaders.get(INTERNAL_USER_HEADER),
-    ),
-    profile: parseForwardedHeader<ForwardedProfile>(
-      requestHeaders.get(INTERNAL_PROFILE_HEADER),
     ),
   };
 });
@@ -82,11 +66,6 @@ export const requireCurrentUser = cache(async () => {
 });
 
 export const getCurrentProfile = cache(async () => {
-  const forwarded = await getForwardedAuthContext();
-  if (forwarded.profile) {
-    return forwarded.profile;
-  }
-
   const user = await getCurrentUser();
   if (!user) {
     return null;

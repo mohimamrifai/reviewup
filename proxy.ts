@@ -1,9 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { profiles } from "@/lib/db/schema";
 
 const MEMBER_PREFIXES = [
   "/profil",
@@ -18,7 +15,6 @@ const MEMBER_PREFIXES = [
 const ADMIN_PREFIXES = ["/admin"];
 const ADMIN_PUBLIC = ["/admin/login"];
 const INTERNAL_USER_HEADER = "x-reviewup-user";
-const INTERNAL_PROFILE_HEADER = "x-reviewup-profile";
 
 function encodeInternalHeader(value: unknown) {
   return encodeURIComponent(JSON.stringify(value));
@@ -50,40 +46,7 @@ export async function proxy(request: NextRequest) {
     requestHeaders.delete(INTERNAL_USER_HEADER);
   }
   const { pathname } = request.nextUrl;
-  const needsRoleCheck =
-    !!user &&
-    (startsWithAny(pathname, MEMBER_PREFIXES) ||
-      startsWithAny(pathname, ADMIN_PREFIXES) ||
-      pathname === "/login" ||
-      pathname === "/register");
-
-  let role = (user as { role?: string } | null)?.role ?? null;
-  if (needsRoleCheck && user) {
-    const [profile] = await db
-      .select({
-        id: profiles.id,
-        role: profiles.role,
-        accessOverrides: profiles.accessOverrides,
-        referredBy: profiles.referredBy,
-        leaderId: profiles.leaderId,
-        username: profiles.username,
-        status: profiles.status,
-        level: profiles.level,
-        referralCode: profiles.referralCode,
-      })
-      .from(profiles)
-      .where(eq(profiles.id, user.id))
-      .limit(1);
-    role = profile?.role ?? role ?? null;
-    if (profile) {
-      requestHeaders.set(INTERNAL_PROFILE_HEADER, encodeInternalHeader(profile));
-    } else {
-      requestHeaders.delete(INTERNAL_PROFILE_HEADER);
-    }
-  }
-  if (!needsRoleCheck || !user) {
-    requestHeaders.delete(INTERNAL_PROFILE_HEADER);
-  }
+  const role = (user as { role?: string } | null)?.role ?? null;
 
   // Halaman admin: wajib login, kecuali /admin/login
   if (startsWithAny(pathname, ADMIN_PREFIXES) && !isAdminPublic(pathname)) {

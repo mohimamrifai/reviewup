@@ -94,100 +94,70 @@ export async function getDashboardStats(
 
   const inRange = (col: AnyPgColumn): SQL | undefined =>
     and(gte(col, activityRange.from), lte(col, activityRange.to));
+  const profileRangeCondition = inRange(profiles.createdAt) ?? sql`false`;
+  const depositRangeCondition = and(
+    inRange(deposits.createdAt),
+    depositMemberFilter,
+  ) ?? sql`false`;
+  const approvedDepositRangeCondition = and(
+    eq(deposits.status, "approved"),
+    inRange(deposits.createdAt),
+    depositMemberFilter,
+  ) ?? sql`false`;
+  const approvedDepositTotalCondition = and(
+    eq(deposits.status, "approved"),
+    range ? inRange(deposits.createdAt) : undefined,
+    depositMemberFilter,
+  ) ?? sql`false`;
+  const completedWithdrawalRangeCondition = and(
+    eq(withdrawals.status, "completed"),
+    inRange(withdrawals.createdAt),
+    withdrawalMemberFilter,
+  ) ?? sql`false`;
+  const completedWithdrawalTotalCondition = and(
+    eq(withdrawals.status, "completed"),
+    range ? inRange(withdrawals.createdAt) : undefined,
+    withdrawalMemberFilter,
+  ) ?? sql`false`;
 
-  // Total member dalam scope (selalu, tidak tergantung range)
-  const [memberRow] = await db
-    .select({ count: sql<number>`COUNT(*)::int` })
-    .from(profiles)
-    .where(
-      and(
-        eq(profiles.role, "member"),
-        memberFilter,
-      ),
-    );
-  const totalMembers = memberRow?.count ?? 0;
-
-  const [
-    regRows,
-    depReqRows,
-    depApprovedRows,
-    wdCompletedRows,
-    totalDepRows,
-    totalWdRows,
-  ] = await Promise.all([
+  const [memberAggRows, depositAggRows, withdrawalAggRows] = await Promise.all([
     db
-      .select({ count: sql<number>`COUNT(*)::int` })
+      .select({
+        totalMembers: sql<number>`COUNT(*)::int`,
+        rangeRegistrations: sql<number>`COUNT(*) FILTER (WHERE ${profileRangeCondition})::int`,
+      })
       .from(profiles)
-      .where(
-        and(
-          eq(profiles.role, "member"),
-          inRange(profiles.createdAt),
-          memberFilter,
-        ),
-      ),
+      .where(and(eq(profiles.role, "member"), memberFilter)),
     db
-      .select({ count: sql<number>`COUNT(*)::int` })
-      .from(deposits)
-      .where(and(inRange(deposits.createdAt), depositMemberFilter)),
+      .select({
+        rangeDepositRequests: sql<number>`COUNT(*) FILTER (WHERE ${depositRangeCondition})::int`,
+        rangeDepositAmount: sql<string>`COALESCE(SUM(${deposits.amount}) FILTER (WHERE ${approvedDepositRangeCondition}), 0)`,
+        totalDepositAmount: sql<string>`COALESCE(SUM(${deposits.amount}) FILTER (WHERE ${approvedDepositTotalCondition}), 0)`,
+      })
+      .from(deposits),
     db
-      .select({ total: sql<string>`COALESCE(SUM(${deposits.amount}), 0)` })
-      .from(deposits)
-      .where(
-        and(
-          eq(deposits.status, "approved"),
-          inRange(deposits.createdAt),
-          depositMemberFilter,
-        ),
-      ),
-    db
-      .select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), 0)` })
-      .from(withdrawals)
-      .where(
-        and(
-          eq(withdrawals.status, "completed"),
-          inRange(withdrawals.createdAt),
-          withdrawalMemberFilter,
-        ),
-      ),
-    db
-      .select({ total: sql<string>`COALESCE(SUM(${deposits.amount}), 0)` })
-      .from(deposits)
-      .where(
-        and(
-          eq(deposits.status, "approved"),
-          range ? inRange(deposits.createdAt) : undefined,
-          depositMemberFilter,
-        ),
-      ),
-    db
-      .select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), 0)` })
-      .from(withdrawals)
-      .where(
-        and(
-          eq(withdrawals.status, "completed"),
-          range ? inRange(withdrawals.createdAt) : undefined,
-          withdrawalMemberFilter,
-        ),
-      ),
+      .select({
+        rangeWithdrawalAmount: sql<string>`COALESCE(SUM(${withdrawals.amount}) FILTER (WHERE ${completedWithdrawalRangeCondition}), 0)`,
+        totalWithdrawalAmount: sql<string>`COALESCE(SUM(${withdrawals.amount}) FILTER (WHERE ${completedWithdrawalTotalCondition}), 0)`,
+      })
+      .from(withdrawals),
   ]);
 
-  const [regRow] = regRows;
-  const [depReqRow] = depReqRows;
-  const [depApprovedRow] = depApprovedRows;
-  const [wdCompletedRow] = wdCompletedRows;
-  const [totalDepRow] = totalDepRows;
-  const [totalWdRow] = totalWdRows;
+  const memberAgg = memberAggRows[0];
+  const depositAgg = depositAggRows[0];
+  const withdrawalAgg = withdrawalAggRows[0];
 
-  const rangeDeposit = Number(depApprovedRow?.total ?? 0);
-  const rangeWithdrawal = Number(wdCompletedRow?.total ?? 0);
+  const totalMembers = memberAgg?.totalMembers ?? 0;
+  const rangeDeposit = Number(depositAgg?.rangeDepositAmount ?? 0);
+  const rangeWithdrawal = Number(withdrawalAgg?.rangeWithdrawalAmount ?? 0);
   return {
     totalMembers,
-    rangeRegistrations: regRow?.count ?? 0,
-    rangeDepositRequests: depReqRow?.count ?? 0,
+    rangeRegistrations: memberAgg?.rangeRegistrations ?? 0,
+    rangeDepositRequests: depositAgg?.rangeDepositRequests ?? 0,
     rangeDepositAmount: rangeDeposit,
     rangeWithdrawalAmount: rangeWithdrawal,
     rangeProfit: Math.max(0, rangeDeposit - rangeWithdrawal),
-    totalDepositAmount: Number(totalDepRow?.total ?? 0),
-    totalWithdrawalAmount: Number(totalWdRow?.total ?? 0),
+    totalDepositAmount: Number(depositAgg?.totalDepositAmount ?? 0),
+    totalWithdrawalAmount: Number(withdrawalAgg?.totalWithdrawalAmount ?? 0),
   };
 }
