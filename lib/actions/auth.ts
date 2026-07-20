@@ -259,21 +259,39 @@ export async function signUp(
     return { error: "Gagal membuat akun baru." };
   }
 
-  // 2. Set withdraw_password_hash di profile (sandi penarikan terpisah
-  //    dari password login — di-hash via pgcrypto crypt()).
+  // 2. Set field tambahan (referral, sandi penarikan) di profile.
+  //    Idempotent terhadap hook database Better Auth: kalau akun sudah
+  //    pernah dibuat dan role masih 'member' default tanpa referral,
+  //    ON CONFLICT akan set saldo awal Rp30.000 + referral staff.
   const { sql } = await import("drizzle-orm");
   try {
     await db.execute(
       sql`
-        UPDATE profiles
-        SET
-          referred_by = ${staff.id},
-          withdraw_password_hash = extensions.crypt(
+        INSERT INTO profiles (id, username, role, balance, referred_by, withdraw_password_hash, updated_at)
+        VALUES (
+          ${createdUser.user.id},
+          ${username},
+          'member',
+          30000,
+          ${staff.id},
+          extensions.crypt(
             ${parsed.data.sandiPenarikan},
             extensions.gen_salt('bf', 10)
           ),
-          updated_at = now()
-        WHERE id = ${createdUser.user.id}
+          now()
+        )
+        ON CONFLICT (id) DO UPDATE
+          SET referred_by = COALESCE(profiles.referred_by, EXCLUDED.referred_by),
+              balance = CASE
+                WHEN profiles.referred_by IS NULL AND profiles.balance = 0
+                THEN 30000
+                ELSE profiles.balance
+              END,
+              withdraw_password_hash = COALESCE(
+                profiles.withdraw_password_hash,
+                EXCLUDED.withdraw_password_hash
+              ),
+              updated_at = now()
       `,
     );
   } catch (error) {

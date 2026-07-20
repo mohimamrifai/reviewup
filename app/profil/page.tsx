@@ -10,10 +10,12 @@ import {
   Wallet,
 } from "lucide-react";
 import { eq } from "drizzle-orm";
+import { headers } from "next/headers";
 
+import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { formatRupiah } from "@/lib/format-rupiah";
 
 import { ProfileHeader } from "./_components/header";
 import { BalanceCard } from "./_components/balance-card";
@@ -24,7 +26,6 @@ import { SecondaryActions } from "./_components/secondary-actions";
 import { SectionCard } from "./_components/section-card";
 import { ActionRow } from "./_components/action-row";
 import { BottomNav } from "../_components/bottom-nav";
-import { formatRupiah } from "@/lib/format-rupiah";
 
 const TIER_LABEL: Record<string, string> = {
   classic: "Classic",
@@ -42,18 +43,18 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default async function ProfilPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await auth.api.getSession({ headers: await headers() });
+  const userId = session?.user?.id;
 
-  const [profile] = user
+  const [profile] = userId
     ? await db
         .select()
         .from(profiles)
-        .where(eq(profiles.id, user.id))
+        .where(eq(profiles.id, userId))
         .limit(1)
     : [];
 
-  const name = profile?.username ?? "Pengguna";
+  const name = profile?.username ?? session?.user?.name ?? "Pengguna";
   const tier = TIER_LABEL[profile?.level ?? "classic"] ?? "Classic";
   const score = profile?.creditScore ?? 0;
   const status = STATUS_LABEL[profile?.status ?? "online"] ?? "Online";

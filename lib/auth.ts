@@ -33,8 +33,9 @@ export const auth = betterAuth({
       generateId: "uuid",
     },
   },
-  // Auto-create profiles row saat user baru daftar. Default role: 'member'.
-  // Server action admin-users akan UPDATE ke admin_leader/admin_staff setelah create.
+  // Auto-create profiles row saat user baru daftar. Default role: 'member'
+  // dengan saldo awal Rp30.000 sesuai PRD. Server action admin-users akan
+  // UPDATE profiles untuk set role/leader_id setelah create.
   databaseHooks: {
     user: {
       create: {
@@ -47,6 +48,7 @@ export const auth = betterAuth({
               id: user.id,
               username,
               role: "member",
+              balance: "30000",
             })
             .onConflictDoNothing();
         },
