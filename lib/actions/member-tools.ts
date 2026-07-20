@@ -349,7 +349,10 @@ export async function resetMemberWithdrawPassword(
   // Hash via PostgreSQL crypt() (bcrypt) supaya sama dengan sign-up trigger
   const result = await db.execute<{ id: string }>(sql`
     UPDATE profiles
-    SET withdraw_password_hash = crypt(${parsed.data.newPassword}, gen_salt('bf', 10)),
+    SET withdraw_password_hash = extensions.crypt(
+          ${parsed.data.newPassword},
+          extensions.gen_salt('bf', 10)
+        ),
         updated_at = now()
     WHERE id = ${parsed.data.memberId}
     RETURNING id

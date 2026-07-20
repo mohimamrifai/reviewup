@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { profiles } from "@/lib/db/schema";
+import { profiles, user as authUsers } from "@/lib/db/schema";
 import { registerSchema, loginSchema } from "@/lib/schemas/auth";
 
 export type AuthState = {
@@ -262,17 +262,33 @@ export async function signUp(
   // 2. Set withdraw_password_hash di profile (sandi penarikan terpisah
   //    dari password login — di-hash via pgcrypto crypt()).
   const { sql } = await import("drizzle-orm");
-  await db.execute(
-    sql`
-      UPDATE profiles
-      SET
-        referral_code = ${referralCode},
-        referred_by = ${staff.id},
-        withdraw_password_hash = crypt(${parsed.data.sandiPenarikan}, gen_salt('bf', 10)),
-        updated_at = now()
-      WHERE id = ${createdUser.user.id}
-    `,
-  );
+  try {
+    await db.execute(
+      sql`
+        UPDATE profiles
+        SET
+          referred_by = ${staff.id},
+          withdraw_password_hash = extensions.crypt(
+            ${parsed.data.sandiPenarikan},
+            extensions.gen_salt('bf', 10)
+          ),
+          updated_at = now()
+        WHERE id = ${createdUser.user.id}
+      `,
+    );
+  } catch (error) {
+    console.error("[signUp] profile sync error:", { username, error });
+    try {
+      await db.delete(authUsers).where(eq(authUsers.id, createdUser.user.id));
+    } catch (cleanupError) {
+      console.error("[signUp] cleanup orphan user error:", {
+        username,
+        userId: createdUser.user.id,
+        cleanupError,
+      });
+    }
+    return { error: "Pendaftaran gagal. Silakan coba lagi." };
+  }
 
   revalidatePath("/profil");
   redirect("/profil");

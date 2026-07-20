@@ -117,7 +117,12 @@ export async function changeWithdrawPassword(
   // Verifikasi sandi penarikan lama (bcrypt crypt — hash tidak bisa
   // dibandingkan langsung dengan plaintext, harus lewat `crypt()`).
   const [verify] = await db.execute<{ ok: boolean }>(sql`
-    SELECT (withdraw_password_hash = crypt(${parsed.data.currentPassword}, withdraw_password_hash)) AS ok
+    SELECT (
+      withdraw_password_hash = extensions.crypt(
+        ${parsed.data.currentPassword},
+        withdraw_password_hash
+      )
+    ) AS ok
     FROM profiles WHERE id = ${user.id}
   `);
   if (!verify?.ok) {
@@ -126,7 +131,10 @@ export async function changeWithdrawPassword(
 
   const updated = await db.execute<{ id: string }>(sql`
     UPDATE profiles
-    SET withdraw_password_hash = crypt(${parsed.data.newPassword}, gen_salt('bf', 10)),
+    SET withdraw_password_hash = extensions.crypt(
+          ${parsed.data.newPassword},
+          extensions.gen_salt('bf', 10)
+        ),
         updated_at = now()
     WHERE id = ${user.id}
     RETURNING id
