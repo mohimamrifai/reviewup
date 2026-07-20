@@ -32,6 +32,14 @@ const productSchema = z.object({
 });
 
 export type ProductState = {
+  success?: boolean;
+  product?: {
+    id: number;
+    name: string;
+    imageUrl: string | null;
+    price: string;
+    isActive: boolean;
+  };
   error?: string;
   fieldErrors?: Partial<Record<string, string[]>>;
 };
@@ -91,24 +99,59 @@ export async function createProduct(
         imageUrl,
         isActive: parsed.data.isActive,
       })
-      .returning({ id: products.id });
+      .returning({
+        id: products.id,
+        name: products.name,
+        imageUrl: products.imageUrl,
+        price: products.price,
+        isActive: products.isActive,
+      });
 
     await attachUploadedFileToProduct(upload.path, createdProduct.id);
     revalidatePath("/admin/product");
+    revalidatePath("/admin/task");
     revalidatePath("/");
-    return {};
+    return {
+      success: true,
+      product: {
+        id: createdProduct.id,
+        name: createdProduct.name,
+        imageUrl: createdProduct.imageUrl,
+        price: createdProduct.price,
+        isActive: createdProduct.isActive,
+      },
+    };
   }
 
-  await db.insert(products).values({
-    name: parsed.data.name,
-    price: parsed.data.price.toFixed(2),
-    imageUrl,
-    isActive: parsed.data.isActive,
-  });
+  const [createdProduct] = await db
+    .insert(products)
+    .values({
+      name: parsed.data.name,
+      price: parsed.data.price.toFixed(2),
+      imageUrl,
+      isActive: parsed.data.isActive,
+    })
+    .returning({
+      id: products.id,
+      name: products.name,
+      imageUrl: products.imageUrl,
+      price: products.price,
+      isActive: products.isActive,
+    });
 
   revalidatePath("/admin/product");
+  revalidatePath("/admin/task");
   revalidatePath("/");
-  return {};
+  return {
+    success: true,
+    product: {
+      id: createdProduct.id,
+      name: createdProduct.name,
+      imageUrl: createdProduct.imageUrl,
+      price: createdProduct.price,
+      isActive: createdProduct.isActive,
+    },
+  };
 }
 
 export async function updateProduct(
@@ -147,7 +190,7 @@ export async function updateProduct(
     await attachUploadedFileToProduct(upload.path, id);
   }
 
-  await db
+  const [updatedProduct] = await db
     .update(products)
     .set({
       name: parsed.data.name,
@@ -156,11 +199,28 @@ export async function updateProduct(
       isActive: parsed.data.isActive,
       updatedAt: new Date(),
     })
-    .where(eq(products.id, id));
+    .where(eq(products.id, id))
+    .returning({
+      id: products.id,
+      name: products.name,
+      imageUrl: products.imageUrl,
+      price: products.price,
+      isActive: products.isActive,
+    });
 
   revalidatePath("/admin/product");
+  revalidatePath("/admin/task");
   revalidatePath("/");
-  return {};
+  return {
+    success: true,
+    product: {
+      id: updatedProduct.id,
+      name: updatedProduct.name,
+      imageUrl: updatedProduct.imageUrl,
+      price: updatedProduct.price,
+      isActive: updatedProduct.isActive,
+    },
+  };
 }
 
 export async function deleteProduct(
@@ -184,6 +244,7 @@ export async function deleteProduct(
 
   await db.delete(products).where(eq(products.id, id));
   revalidatePath("/admin/product");
+  revalidatePath("/admin/task");
   revalidatePath("/");
-  return {};
+  return { success: true };
 }

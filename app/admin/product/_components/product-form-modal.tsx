@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect } from "react";
 import { initialState, labelClass, Product } from "./products-table";
 import { createProduct, updateProduct } from "@/lib/actions/products";
 import ModalShell from "./modal-sheel";
@@ -23,42 +23,19 @@ export default function ProductFormModal({
     mode === "create" ? createProduct : updateProduct,
     initialState,
   );
-  const [pendingPreview, setPendingPreview] = useState<string | null>(null);
 
-  // After successful save, parent should close & update list. We rely on the
-  // revalidation done server-side; modal stays until user dismisses.
+  useEffect(() => {
+    if (!state.success || !state.product) return;
+    onSaved(state.product);
+    onClose();
+  }, [state, onClose, onSaved]);
+
   return (
     <ModalShell
       title={mode === "create" ? "Tambah Produk" : "Edit Produk"}
       onClose={onClose}
     >
-      <form
-        action={async (fd) => {
-          await formAction(fd);
-          // Optimistically resolve by reading state (server returns fieldErrors or empty)
-          // We let parent decide via revalidatePath; here we close & pass optimistic data.
-          const imageUrl =
-            pendingPreview ?? (mode === "edit" ? product?.imageUrl ?? null : null);
-          if (mode === "create") {
-            onSaved({
-              id: Date.now(), // temporary id, real list will refresh via revalidate
-              name: String(fd.get("name") ?? ""),
-              imageUrl,
-              price: String(fd.get("price") ?? "0"),
-              isActive: fd.get("isActive") === "on",
-            });
-          } else if (product) {
-            onSaved({
-              ...product,
-              name: String(fd.get("name") ?? product.name),
-              imageUrl,
-              price: String(fd.get("price") ?? product.price),
-              isActive: fd.get("isActive") === "on",
-            });
-          }
-        }}
-        className="space-y-3"
-      >
+      <form action={formAction} className="space-y-3">
         {mode === "edit" && <input type="hidden" name="id" value={product?.id} />}
 
         <Field
@@ -80,9 +57,7 @@ export default function ProductFormModal({
           label="Gambar Produk"
           initialUrl={product?.imageUrl ?? null}
           error={state.fieldErrors?.image?.[0]}
-          onFileChange={(file) => {
-            setPendingPreview(file ? URL.createObjectURL(file) : null);
-          }}
+          onFileChange={() => {}}
           helpText="Format JPG/PNG/WEBP, maksimal 2MB."
         />
 
