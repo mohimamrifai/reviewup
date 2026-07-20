@@ -1,12 +1,12 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, refresh } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { auditLogs, commissionSettings, type CommissionSetting } from "@/lib/db/schema";
 import { revalidateCommissionCache } from "@/lib/levels";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export type CommissionSettingsState = {
   error?: string;
@@ -16,10 +16,7 @@ export type CommissionSettingsState = {
 };
 
 async function requireSuperAdminOrOverride(): Promise<string> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHENTICATED");
 
   const { getScope } = await import("@/lib/access");
@@ -87,6 +84,8 @@ export async function updateCommissionSetting(
   revalidateCommissionCache();
   revalidatePath("/admin/commission/settings");
   revalidatePath("/admin/commission");
+
+  refresh();
 
   return { success: true, message: `Komisi level ${level} disimpan (${percentStr}%).` };
 }

@@ -1,11 +1,11 @@
 "use server";
 
 import { eq, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, refresh } from "next/cache";
 
 import { db } from "@/lib/db";
 import { auditLogs, profiles, taskRequests, tasks } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export type TaskRequestState = {
   error?: string;
@@ -22,10 +22,7 @@ async function getMemberContext(): Promise<
   | { ok: true; userId: string; referredBy: string | null }
   | { ok: false; error: TaskRequestState }
 > {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { ok: false, error: { error: "Sesi habis, silakan login ulang." } };
 
   const [profile] = await db
@@ -96,6 +93,7 @@ export async function requestTask(
   revalidatePath("/task");
   revalidatePath("/order");
   revalidatePath("/admin/task");
+  refresh();
   return {
     success: true,
     message: "Permintaan tugas dikirim. Mohon tunggu admin memilihkan produk.",
@@ -230,6 +228,7 @@ export async function submitTask(
   revalidatePath("/admin/users");
   revalidatePath("/profil");
   revalidatePath("/task");
+  refresh();
   return {
     success: true,
     message: "Tugas berhasil dimulai. Mohon tunggu verifikasi admin.",

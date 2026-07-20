@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, refresh } from "next/cache";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";

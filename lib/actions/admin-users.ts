@@ -2,7 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, refresh } from "next/cache";
 import { z } from "zod";
 
 import { getScope } from "@/lib/access";
@@ -300,6 +300,7 @@ export async function createAdminUser(
   });
 
   revalidatePath("/admin/team");
+  refresh();
   return {
     success: true,
     message: `Akun ${role === "admin_leader" ? "Admin Leader" : "Admin Staff"} berhasil dibuat.`,
@@ -511,6 +512,7 @@ export async function updateAdminUser(
   });
 
   revalidatePath("/admin/team");
+  refresh();
   return { success: true, message: "Akun admin berhasil diperbarui." };
 }
 
@@ -611,6 +613,7 @@ export async function resetAdminPassword(
   });
 
   revalidatePath("/admin/team");
+  refresh();
   return {
     success: true,
     message: `Password @${target.username} berhasil di-reset.`,
@@ -727,6 +730,7 @@ export async function deleteAdminUser(
   });
 
   revalidatePath("/admin/team");
+  refresh();
   return { success: true, message: `Akun @${target.username} berhasil dihapus.` };
 }
 
@@ -812,6 +816,7 @@ export async function setStaffLeader(
 
   // Tidak ada perubahan yang perlu dilakukan jika leader sudah sama
   if (target.leaderId === newLeaderId) {
+    refresh();
     return { success: true, message: `@${target.username} sudah berada di bawah @${newLeader.username}.`, targetId: staffId };
   }
 
@@ -841,6 +846,7 @@ export async function setStaffLeader(
   });
 
   revalidatePath("/admin/team");
+  refresh();
   return {
     success: true,
     message: `Staff @${target.username} berhasil dikaitkan ke @${newLeader.username}.`,

@@ -1,12 +1,12 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, refresh } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { auditLogs, profiles } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export type CommissionState = {
   error?: string;
@@ -16,10 +16,7 @@ export type CommissionState = {
 };
 
 async function requireSuperAdmin(): Promise<string> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHENTICATED");
 
   const [profile] = await db
@@ -100,6 +97,7 @@ export async function setStaffCommissionRate(
 
   revalidatePath("/admin/commission");
   revalidatePath("/admin/staff");
+  refresh();
   return {
     success: true,
     message:

@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { products, taskRequests, tasks } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 import { OrdersList } from "./_components/orders-list";
 import { PageHeader } from "./_components/header";
@@ -18,10 +18,7 @@ const STATUS_LABEL: Record<string, { label: string; variant: "blue" | "green" | 
 };
 
 export default async function OrderPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     return (

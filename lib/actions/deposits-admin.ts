@@ -1,13 +1,13 @@
 "use server";
 
 import { eq, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, refresh } from "next/cache";
 import { z } from "zod";
 
 import { assertCanAccessMember, getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { deposits, profiles } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 const actionSchema = z.object({
   id: z.coerce.number().int().positive("ID tidak valid."),
@@ -24,10 +24,7 @@ export type DepositReviewState = {
 };
 
 async function requireAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHENTICATED");
 
   const [profile] = await db
@@ -50,10 +47,7 @@ function handleAuthError(e: unknown): DepositReviewState {
 }
 
 async function assertScopeForMember(memberId: string): Promise<void> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHENTICATED");
   const scope = await getScope(user.id);
   if (!scope) throw new Error("FORBIDDEN");
@@ -141,5 +135,6 @@ export async function reviewDeposit(
   revalidatePath("/admin/rechargelist");
   revalidatePath("/profil");
   revalidatePath("/profil/rechargelist");
+  refresh();
   return { success: true };
 }

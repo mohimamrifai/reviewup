@@ -1,7 +1,7 @@
 "use server";
 
 import { and, eq, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, refresh } from "next/cache";
 import { z } from "zod";
 
 import {
@@ -10,7 +10,7 @@ import {
 } from "@/lib/constants/withdrawal";
 import { db } from "@/lib/db";
 import { bankAccounts, profiles, withdrawals } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 const withdrawSchema = z.object({
   bankAccountId: z
@@ -39,10 +39,7 @@ export type WithdrawState = {
 };
 
 async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHENTICATED");
   return user;
 }
@@ -140,5 +137,6 @@ export async function submitWithdrawal(
   revalidatePath("/profil");
   revalidatePath("/profil/withdrawlist");
   revalidatePath("/admin/withdrawlist");
+  refresh();
   return { success: true };
 }

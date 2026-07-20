@@ -1,14 +1,14 @@
 "use server";
 
 import { eq, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, refresh } from "next/cache";
 import { z } from "zod";
 
 import { assertCanAccessMember, getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { type Level, getCommissionRate } from "@/lib/levels";
 import { auditLogs, products, profiles, taskRequests, tasks } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 const statusSchema = z.object({
   taskId: z.coerce.number().int().positive("ID tugas tidak valid."),
@@ -30,10 +30,7 @@ async function requireUser(): Promise<{
   userId: string;
   isAdmin: boolean;
 }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHENTICATED");
 
   const [profile] = await db
@@ -60,10 +57,7 @@ function handleAuthError(e: unknown): TaskReviewState {
 }
 
 async function assertScopeForMember(memberId: string): Promise<void> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHENTICATED");
   const scope = await getScope(user.id);
   if (!scope) throw new Error("FORBIDDEN");
@@ -180,6 +174,7 @@ export async function updateTaskStatus(
     });
     revalidatePath("/admin/task");
     revalidatePath("/order");
+    refresh();
     return {
       success: true,
       message: isAdmin
@@ -266,6 +261,7 @@ export async function updateTaskStatus(
     revalidatePath("/order");
     revalidatePath("/profil");
     revalidatePath("/task");
+    refresh();
     return {
       success: true,
       message: `Tugas #${taskId} ditolak. Saldo Rp ${frz.refundAmount.toLocaleString("id-ID")} dikembalikan ke member.`,
@@ -393,6 +389,7 @@ export async function updateTaskStatus(
   revalidatePath("/profil");
   revalidatePath("/order");
   revalidatePath("/task");
+  refresh();
   return {
     success: true,
     message: r.fromFrozen
@@ -511,6 +508,7 @@ export async function createTask(
   revalidatePath("/admin/task");
   revalidatePath("/order");
   revalidatePath("/task");
+  refresh();
   return {
     success: true,
     message: `Tugas #${created.id} berhasil diberikan.`,
@@ -629,6 +627,7 @@ export async function assignProduct(
   revalidatePath("/admin/task");
   revalidatePath("/order");
   revalidatePath("/task");
+  refresh();
   return {
     success: true,
     message: `Produk berhasil dipilih untuk request #${parsed.data.taskId}.`,

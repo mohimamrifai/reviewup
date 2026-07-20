@@ -1,13 +1,13 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, refresh } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { deposits, profiles } from "@/lib/db/schema";
 import { attachUploadedFileToDeposit, isAllowedImageMime, saveUploadedFile } from "@/lib/storage/local-storage";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 const depositSchema = z.object({
   amount: z
@@ -28,10 +28,7 @@ export async function submitDeposit(
   _prev: DepositState,
   formData: FormData,
 ): Promise<DepositState> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { error: "Sesi habis, silakan login ulang." };
 
   // Cek status akun: banned member tidak boleh deposit
@@ -84,5 +81,6 @@ export async function submitDeposit(
   revalidatePath("/recharge");
   revalidatePath("/profil");
   revalidatePath("/admin/rechargelist");
+  refresh();
   return { success: true };
 }

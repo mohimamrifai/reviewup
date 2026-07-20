@@ -1,7 +1,7 @@
 "use server";
 
 import { eq, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, refresh } from "next/cache";
 import { z } from "zod";
 
 import { assertCanAccessMember, getScope } from "@/lib/access";
@@ -12,7 +12,7 @@ import {
 } from "@/lib/constants/withdrawal";
 import { db } from "@/lib/db";
 import { auditLogs, profiles, withdrawals } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 const actionSchema = z
   .object({
@@ -55,10 +55,7 @@ export type WithdrawReviewState = {
 };
 
 async function requireAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHENTICATED");
 
   const [profile] = await db
@@ -81,10 +78,7 @@ function handleAuthError(e: unknown): WithdrawReviewState {
 }
 
 async function assertScopeForMember(memberId: string): Promise<void> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHENTICATED");
   const scope = await getScope(user.id);
   if (!scope) throw new Error("FORBIDDEN");
@@ -235,5 +229,6 @@ export async function reviewWithdrawal(
   revalidatePath("/profil/withdrawlist");
   revalidatePath("/admin/users");
   revalidatePath("/admin/dashboard");
+  refresh();
   return { success: true };
 }

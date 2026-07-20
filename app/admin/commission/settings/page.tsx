@@ -4,16 +4,13 @@ import { redirect } from "next/navigation";
 import { getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { commissionSettings } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 import { LEVEL_LABEL, LEVEL_RATE_PERCENT } from "@/lib/levels";
 
 import { CommissionSettingsTable } from "./_components/commission-settings-table";
 
 export default async function CommissionSettingsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/admin/login");
 
   const scope = await getScope(user.id);

@@ -157,7 +157,7 @@ export function TasksTable({
             ) : (
               filtered.map((t, i) => (
                 <tr
-                  key={t.id}
+                  key={`${t.kind}-${t.id}`}
                   className="group border-t border-zinc-200 transition hover:bg-zinc-50/60"
                 >
                   <td className={cellClass}>{i + 1}</td>

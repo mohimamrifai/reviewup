@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 import { getStaffCommissionSummary } from "@/lib/team";
 
 import Link from "next/link";
@@ -11,10 +11,7 @@ import Link from "next/link";
 import { CommissionTable } from "./_components/commission-table";
 
 export default async function AdminCommissionPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/admin/login");
 
   const [me] = await db

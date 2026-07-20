@@ -1,13 +1,13 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, refresh } from "next/cache";
 import { z } from "zod";
 
 import { type Scope, getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { customerServiceChannels } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 const channelSchema = z.object({
   type: z.enum(["whatsapp", "telegram"], {
@@ -54,10 +54,7 @@ export type ChannelState = {
  * Role `admin_leader`/`admin_staff` tanpa override ditolak.
  */
 async function requireChannelManager(): Promise<{ actorId: string; scope: Scope }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHENTICATED");
 
   const scope = await getScope(user.id);

@@ -1,7 +1,7 @@
 "use server";
 
 import { eq, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, refresh } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
 
@@ -9,7 +9,7 @@ import { assertCanAccessMember, getScope } from "@/lib/access";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { auditLogs, profiles } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export type MemberToolState = {
   error?: string;
@@ -19,10 +19,7 @@ export type MemberToolState = {
 };
 
 async function requireAdmin(): Promise<string> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHENTICATED");
 
   const [profile] = await db
@@ -49,10 +46,7 @@ function handleAuthError(e: unknown): MemberToolState {
  * Throw `FORBIDDEN_SCOPE` jika di luar scope, `UNAUTHENTICATED` jika tidak login.
  */
 async function assertScopeForMember(memberId: string): Promise<void> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHENTICATED");
   const scope = await getScope(user.id);
   if (!scope) throw new Error("FORBIDDEN");
@@ -133,6 +127,7 @@ export async function updateMemberLevel(
   });
 
   revalidatePath("/admin/users");
+  refresh();
   return { success: true, message: "Level anggota berhasil diperbarui." };
 }
 
@@ -188,6 +183,7 @@ export async function updateMemberCreditScore(
   });
 
   revalidatePath("/admin/users");
+  refresh();
   return { success: true, message: "Skor kredit berhasil diperbarui." };
 }
 
@@ -252,6 +248,7 @@ export async function adjustMemberBalance(
 
   revalidatePath("/admin/users");
   revalidatePath("/profil");
+  refresh();
   return { success: true, message: "Saldo anggota berhasil diperbarui." };
 }
 
@@ -309,6 +306,7 @@ export async function resetMemberLoginPassword(
   });
 
   revalidatePath("/admin/users");
+  refresh();
   return { success: true, message: "Kata sandi login berhasil direset." };
 }
 
@@ -368,6 +366,7 @@ export async function resetMemberWithdrawPassword(
   });
 
   revalidatePath("/admin/users");
+  refresh();
   return { success: true, message: "Kata sandi penarikan berhasil direset." };
 }
 
@@ -442,6 +441,7 @@ export async function setMemberWithdrawLock(
 
   revalidatePath("/admin/users");
   revalidatePath("/profil");
+  refresh();
   return {
     success: true,
     message: parsed.data.lock

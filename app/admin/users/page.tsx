@@ -4,15 +4,12 @@ import { redirect } from "next/navigation";
 import { getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 import { MembersTable } from "./_components/members-table";
 
 export default async function AdminUsersPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/admin/login");
 
   const [me] = await db

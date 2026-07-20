@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 import { getStaffDetailStats } from "@/lib/team";
 
 import { StaffDetailContent } from "./_components/staff-detail-content";
@@ -20,10 +20,7 @@ export default async function StaffDetailPage({
   const { staffId } = await params;
   const { from, to } = await searchParams;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/admin/login");
 
   const [me] = await db

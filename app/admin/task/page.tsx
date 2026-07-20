@@ -5,16 +5,13 @@ import { getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { products, profiles, taskRequests, tasks } from "@/lib/db/schema";
 import { type Level } from "@/lib/levels";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 import { TasksTable } from "./_components/tasks-table";
 
 export default async function AdminTaskPage() {
   // Identifikasi admin yang login
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/admin/login");
 
   const [me] = await db

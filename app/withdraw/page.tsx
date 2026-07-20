@@ -2,16 +2,13 @@ import { desc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { bankAccounts, profiles } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 import { BottomNav } from "../_components/bottom-nav";
 import { WithdrawContent } from "./_components/withdraw-content";
 
 export default async function WithdrawPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     return (

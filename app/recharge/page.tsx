@@ -4,15 +4,12 @@ import { redirect } from "next/navigation";
 import { BottomNav } from "../_components/bottom-nav";
 import { db } from "@/lib/db";
 import { depositBankAccounts, profiles } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 import { RechargeForm } from "./_components/recharge-form";
 
 export default async function RechargePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const [me] = await db

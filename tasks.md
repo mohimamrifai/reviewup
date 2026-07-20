@@ -6,5 +6,15 @@
 - Member test: Username `rinasyah`, Password `jika123` (referral `STAFF001`, sandi penarikan `123456`)
 
 
-tidak perlu lakukan testing, tidak perlu memberi penjelasan. langsung perbaiki akar masalahnya
+yang harus kamu kerjakan :
+- rombak total
+- hapus kode kode supabase
+- website saat ini lambat sekali
+- data terbaru harus di referesh untuk di lihat
+- CRUD juga sama
 
+
+batasan :
+- tidak perlu lint
+- tidak perlu build
+- tidak perlu testing

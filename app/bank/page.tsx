@@ -2,16 +2,13 @@ import { eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { bankAccounts } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 import { BottomNav } from "../_components/bottom-nav";
 import { BankContent } from "./_components/bank-content";
 
 export default async function BankPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   const rows = user
     ? await db

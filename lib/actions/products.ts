@@ -1,7 +1,7 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, refresh } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
@@ -111,6 +111,7 @@ export async function createProduct(
     revalidatePath("/admin/product");
     revalidatePath("/admin/task");
     revalidatePath("/");
+    refresh();
     return {
       success: true,
       product: {
@@ -142,6 +143,7 @@ export async function createProduct(
   revalidatePath("/admin/product");
   revalidatePath("/admin/task");
   revalidatePath("/");
+  refresh();
   return {
     success: true,
     product: {
@@ -211,6 +213,7 @@ export async function updateProduct(
   revalidatePath("/admin/product");
   revalidatePath("/admin/task");
   revalidatePath("/");
+  refresh();
   return {
     success: true,
     product: {
@@ -246,5 +249,6 @@ export async function deleteProduct(
   revalidatePath("/admin/product");
   revalidatePath("/admin/task");
   revalidatePath("/");
+  refresh();
   return { success: true };
 }

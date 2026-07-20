@@ -5,7 +5,7 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { deposits } from "@/lib/db/schema";
 import { formatRupiah } from "@/lib/format-rupiah";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 import { BottomNav } from "../../_components/bottom-nav";
 
@@ -32,10 +32,7 @@ function formatDate(d: Date) {
 }
 
 export default async function RechargeHistoryPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   const rows = user
     ? await db

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { db } from "@/lib/db";
 import { deposits, profiles, withdrawals } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 import { StaffsTable } from "./_components/staffs-table";
 import { StaffDateRange } from "./_components/staff-date-range";
@@ -53,10 +53,7 @@ export default async function AdminStaffsPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/admin/login");
 
   const [me] = await db

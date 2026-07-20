@@ -4,16 +4,13 @@ import { redirect } from "next/navigation";
 import { getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { deposits, profiles } from "@/lib/db/schema";
-import { resolveProofUrl } from "@/lib/supabase/proof-url";
-import { createClient } from "@/lib/supabase/server";
+import { resolveProofUrl } from "@/lib/files/proof-url";
+import { getCurrentUser } from "@/lib/auth/session";
 
 import { RechargesTable } from "./_components/recharges-table";
 
 export default async function AdminRechargeListPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/admin/login");
 
   const scope = await getScope(user.id);

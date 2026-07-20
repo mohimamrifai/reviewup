@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { AdminNav } from "@/app/admin/dashboard/_components/admin-nav";
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 type Props = {
   children: React.ReactNode;
@@ -20,10 +20,7 @@ export default async function AdminLayout({ children }: Props) {
     return <div className="min-h-screen bg-black text-white">{children}</div>;
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) redirect("/admin/login");
 

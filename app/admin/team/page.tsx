@@ -3,16 +3,13 @@ import { redirect } from "next/navigation";
 
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 import { TeamTable } from "./_components/team-table";
 
 export default async function AdminTeamPage() {
   // Identifikasi admin yang login
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/admin/login");
 
   const [me] = await db

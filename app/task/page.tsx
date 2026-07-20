@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { profiles, tasks } from "@/lib/db/schema";
 import { formatRupiah } from "@/lib/format-rupiah";
 import { LEVEL_LABEL, LEVEL_RATE_PERCENT } from "@/lib/levels";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 import { InfoBox } from "./_components/info-box";
 import { MemberCard } from "./_components/member-card";
@@ -19,10 +19,7 @@ import { BottomNav } from "../_components/bottom-nav";
 export const dynamic = "force-dynamic";
 
 export default async function TaskPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     return (

@@ -4,15 +4,12 @@ import { redirect } from "next/navigation";
 import { getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { customerServiceChannels, profiles } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 import { PelayananTable } from "./_components/pelayanan-table";
 
 export default async function AdminPelayananPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/admin/login");
 
   const [me] = await db

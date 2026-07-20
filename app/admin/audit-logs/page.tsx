@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { db } from "@/lib/db";
 import { auditLogs, profiles } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 import { AuditLogsTable } from "./_components/audit-logs-table";
 
@@ -25,10 +25,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 export default async function AdminAuditLogsPage() {
   // Identifikasi admin yang login
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/admin/login");
 
   const [me] = await db

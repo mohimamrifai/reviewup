@@ -12,7 +12,7 @@ if (!url) {
 export default defineConfig({
   dialect: "postgresql",
   schema: "./lib/db/schema/index.ts",
-  out: "./supabase/migrations",
+  out: "./drizzle/migrations",
   casing: "snake_case",
   dbCredentials: { url },
   strict: true,

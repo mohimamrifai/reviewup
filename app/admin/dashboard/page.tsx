@@ -4,7 +4,7 @@ import { StatCard } from "./_components/stat-card";
 import { getDashboardStats, parseDateRange } from "@/lib/dashboard";
 import { formatRupiah } from "@/lib/format-rupiah";
 import { getScope } from "@/lib/access";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 type SearchParams = Promise<{ from?: string; to?: string }>;
 
@@ -17,10 +17,7 @@ export default async function AdminDashboardPage({
   const range = parseDateRange(params.from, params.to);
 
   // Ambil scope admin yang login agar tiap akun lihat angkanya sendiri.
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   const scope = user ? await getScope(user.id) : null;
 
   const stats = await getDashboardStats(range, scope);

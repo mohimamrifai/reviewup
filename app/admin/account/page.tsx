@@ -4,15 +4,12 @@ import { redirect } from "next/navigation";
 import { getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { bankAccounts, profiles } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 import { AccountsTable } from "./_components/accounts-table";
 
 export default async function AdminAccountPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/admin/login");
 
   const scope = await getScope(user.id);

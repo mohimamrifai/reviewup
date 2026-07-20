@@ -1,7 +1,7 @@
 "use server";
 
 import { sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, refresh } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
 
@@ -90,6 +90,7 @@ export async function changeLoginPassword(
   }
 
   revalidatePath("/profil/change-password");
+  refresh();
   return { success: true, message: "Kata sandi masuk berhasil diperbarui." };
 }
 
@@ -144,5 +145,6 @@ export async function changeWithdrawPassword(
   }
 
   revalidatePath("/profil/change-password");
+  refresh();
   return { success: true, message: "Sandi penarikan berhasil diperbarui." };
 }

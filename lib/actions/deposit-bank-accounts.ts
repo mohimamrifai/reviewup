@@ -1,13 +1,13 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, refresh } from "next/cache";
 import { z } from "zod";
 
 import { type Scope, getScope } from "@/lib/access";
 import { db } from "@/lib/db";
 import { depositBankAccounts } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 const baseSchema = z.object({
   bankName: z
@@ -59,10 +59,7 @@ export type DepositBankAccountState = {
  * Role `admin_leader`/`admin_staff` tanpa override ditolak.
  */
 async function requireBankAccountManager(): Promise<{ actorId: string; scope: Scope }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHENTICATED");
 
   const scope = await getScope(user.id);
@@ -115,6 +112,7 @@ export async function addDepositBankAccount(
 
   revalidatePath("/admin/deposit-bank");
   revalidatePath("/recharge");
+  refresh();
   return { success: true, message: "Rekening tujuan berhasil ditambahkan." };
 }
 
@@ -152,6 +150,7 @@ export async function updateDepositBankAccount(
 
   revalidatePath("/admin/deposit-bank");
   revalidatePath("/recharge");
+  refresh();
   return { success: true, message: "Rekening tujuan berhasil diperbarui." };
 }
 
@@ -178,6 +177,7 @@ export async function deleteDepositBankAccount(
 
   revalidatePath("/admin/deposit-bank");
   revalidatePath("/recharge");
+  refresh();
   return { success: true, message: "Rekening tujuan berhasil dihapus." };
 }
 
@@ -212,6 +212,7 @@ export async function toggleDepositBankAccountActive(
 
   revalidatePath("/admin/deposit-bank");
   revalidatePath("/recharge");
+  refresh();
   return {
     success: true,
     message: current.isActive
