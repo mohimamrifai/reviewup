@@ -1,19 +1,18 @@
 "use client";
 
-import { useActionState, useMemo, useState, useTransition } from "react";
-import { Package, Plus, Save, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Package, Plus } from "lucide-react";
+import formatRupiah from "@/lib/format-rupiah";
 
 import {
-  createProduct,
-  deleteProduct,
-  updateProduct,
   type ProductState,
 } from "@/lib/actions/products";
-import { ImageDropzone } from "@/app/_components/image-dropzone";
 
 import { Pagination } from "./pagination";
+import DeleteButton from "./delete-button";
+import ProductFormModal from "./product-form-modal";
 
-type Product = {
+export type Product = {
   id: number;
   name: string;
   imageUrl: string | null;
@@ -22,15 +21,10 @@ type Product = {
 };
 
 const ITEMS_PER_PAGE = 6;
-const inputClass =
+export const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm";
-const labelClass = "text-xs font-semibold text-zinc-900 sm:text-sm";
-const initialState: ProductState = {};
-
-function formatRupiah(n: string | number): string {
-  const num = typeof n === "string" ? Number(n) : n;
-  return `Rp ${num.toLocaleString("id-ID")}`;
-}
+export const labelClass = "text-xs font-semibold text-zinc-900 sm:text-sm";
+export const initialState: ProductState = {};
 
 export function ProductsTable({
   initialProducts,
@@ -141,11 +135,10 @@ export function ProductsTable({
                     </td>
                     <td className="px-3 py-2 sm:px-4 sm:py-3">
                       <span
-                        className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold sm:text-xs ${
-                          p.isActive
+                        className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold sm:text-xs ${p.isActive
                             ? "bg-emerald-100 text-emerald-700"
                             : "bg-zinc-100 text-zinc-600"
-                        }`}
+                          }`}
                       >
                         {p.isActive ? "Aktif" : "Non-aktif"}
                       </span>
@@ -209,244 +202,5 @@ export function ProductsTable({
         />
       )}
     </>
-  );
-}
-
-function DeleteButton({
-  id,
-  onDeleted,
-}: {
-  id: number;
-  onDeleted: () => void;
-}) {
-  const [isPending, startTransition] = useTransition();
-  const [confirm, setConfirm] = useState(false);
-
-  function handleDelete() {
-    const fd = new FormData();
-    fd.set("id", String(id));
-    startTransition(async () => {
-      await deleteProduct({}, fd);
-      onDeleted();
-    });
-  }
-
-  if (confirm) {
-    return (
-      <div className="flex flex-col gap-1">
-        <button
-          type="button"
-          onClick={handleDelete}
-          disabled={isPending}
-          className="rounded-md bg-rose-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
-        >
-          {isPending ? "..." : "Yakin?"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setConfirm(false)}
-          className="rounded-md bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-200"
-        >
-          Batal
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => setConfirm(true)}
-      className="rounded-md bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700 transition hover:bg-rose-200"
-    >
-      Hapus
-    </button>
-  );
-}
-
-function ProductFormModal({
-  mode,
-  product,
-  onClose,
-  onSaved,
-}: {
-  mode: "create" | "edit";
-  product?: Product;
-  onClose: () => void;
-  onSaved: (p: Product) => void;
-}) {
-  const [state, formAction, isPending] = useActionState(
-    mode === "create" ? createProduct : updateProduct,
-    initialState,
-  );
-  const [pendingPreview, setPendingPreview] = useState<string | null>(null);
-
-  // After successful save, parent should close & update list. We rely on the
-  // revalidation done server-side; modal stays until user dismisses.
-  return (
-    <ModalShell
-      title={mode === "create" ? "Tambah Produk" : "Edit Produk"}
-      onClose={onClose}
-    >
-      <form
-        action={async (fd) => {
-          await formAction(fd);
-          // Optimistically resolve by reading state (server returns fieldErrors or empty)
-          // We let parent decide via revalidatePath; here we close & pass optimistic data.
-          const imageUrl =
-            pendingPreview ?? (mode === "edit" ? product?.imageUrl ?? null : null);
-          if (mode === "create") {
-            onSaved({
-              id: Date.now(), // temporary id, real list will refresh via revalidate
-              name: String(fd.get("name") ?? ""),
-              imageUrl,
-              price: String(fd.get("price") ?? "0"),
-              isActive: fd.get("isActive") === "on",
-            });
-          } else if (product) {
-            onSaved({
-              ...product,
-              name: String(fd.get("name") ?? product.name),
-              imageUrl,
-              price: String(fd.get("price") ?? product.price),
-              isActive: fd.get("isActive") === "on",
-            });
-          }
-        }}
-        className="space-y-3"
-      >
-        {mode === "edit" && <input type="hidden" name="id" value={product?.id} />}
-
-        <Field
-          label="Nama Produk"
-          name="name"
-          defaultValue={product?.name}
-          error={state.fieldErrors?.name?.[0]}
-        />
-        <Field
-          label="Harga (Rp)"
-          name="price"
-          inputMode="numeric"
-          defaultValue={
-            product ? String(Math.round(Number(product.price))) : ""
-          }
-          error={state.fieldErrors?.price?.[0]}
-        />
-        <ImageDropzone
-          label="Gambar Produk"
-          initialUrl={product?.imageUrl ?? null}
-          error={state.fieldErrors?.image?.[0]}
-          onFileChange={(file) => {
-            setPendingPreview(file ? URL.createObjectURL(file) : null);
-          }}
-          helpText="Format JPG/PNG/WEBP, maksimal 2MB."
-        />
-
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            name="isActive"
-            defaultChecked={product?.isActive ?? true}
-            className="size-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
-          />
-          <span className={labelClass}>Aktif</span>
-        </label>
-
-        {state.error && (
-          <p className="rounded-md bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600 sm:text-sm">
-            {state.error}
-          </p>
-        )}
-
-        <div className="flex justify-end gap-2 pt-1">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md bg-zinc-100 px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-200 sm:text-sm"
-          >
-            Batal
-          </button>
-          <button
-            type="submit"
-            disabled={isPending}
-            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60 sm:text-sm"
-          >
-            <Save className="size-3.5" />
-            {isPending ? "Menyimpan..." : "Simpan"}
-          </button>
-        </div>
-      </form>
-    </ModalShell>
-  );
-}
-
-function Field({
-  label,
-  name,
-  defaultValue,
-  placeholder,
-  inputMode,
-  error,
-}: {
-  label: string;
-  name: string;
-  defaultValue?: string;
-  placeholder?: string;
-  inputMode?: "numeric" | "text";
-  error?: string;
-}) {
-  return (
-    <label className="block">
-      <span className={`mb-1 block ${labelClass}`}>{label}</span>
-      <input
-        type="text"
-        name={name}
-        defaultValue={defaultValue}
-        placeholder={placeholder}
-        inputMode={inputMode}
-        className={inputClass}
-      />
-      {error && <span className="mt-1 block text-xs text-rose-600">{error}</span>}
-    </label>
-  );
-}
-
-function ModalShell({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-3 sm:p-4"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl sm:p-5"
-      >
-        <div className="mb-4 flex items-center justify-between sm:mb-5">
-          <h2 className="text-sm font-bold text-zinc-900 sm:text-base">
-            {title}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Tutup"
-            className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
   );
 }
