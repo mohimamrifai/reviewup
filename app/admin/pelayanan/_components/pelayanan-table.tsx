@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { ExternalLink, Pencil, Plus, Send, Trash2 } from "lucide-react";
 
-import { deleteChannel, type ChannelState } from "@/lib/actions/channels";
+import { deleteChannel } from "@/lib/actions/channels";
 
 import { ChannelModal, type ChannelInput } from "./channel-modal";
 
@@ -46,30 +46,22 @@ export function PelayananTable({
 }: {
   initialChannels: ChannelInput[];
 }) {
-  const [channels, setChannels] = useState<ChannelInput[]>(initialChannels);
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<ChannelInput | "new" | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    if (!q) return channels;
-    return channels.filter(
+    if (!q) return initialChannels;
+    return initialChannels.filter(
       (c) =>
         c.label.toLowerCase().includes(q) ||
         c.url.toLowerCase().includes(q) ||
         typeLabel[c.type].toLowerCase().includes(q),
     );
-  }, [channels, query]);
+  }, [initialChannels, query]);
 
-  function handleSaved(saved: NonNullable<ChannelState["saved"]>) {
+  function handleSaved() {
     setEditing(null);
-    setChannels((cur) => {
-      const exists = cur.some((c) => c.id === saved.id);
-      if (exists) {
-        return cur.map((c) => (c.id === saved.id ? saved : c));
-      }
-      return [...cur, saved];
-    });
   }
 
   function handleDelete(id: number) {
@@ -81,7 +73,6 @@ export function PelayananTable({
     fd.set("id", String(id));
     startDelete(async () => {
       await deleteChannel({}, fd);
-      setChannels((cur) => cur.filter((c) => c.id !== id));
     });
   }
 
@@ -126,7 +117,7 @@ export function PelayananTable({
                   colSpan={6}
                   className="px-3 py-8 text-center text-xs text-zinc-500 sm:text-sm"
                 >
-                  {channels.length === 0
+                  {initialChannels.length === 0
                     ? 'Belum ada channel. Klik "Tambah Channel" untuk mulai.'
                     : "Tidak ada channel yang cocok."}
                 </td>

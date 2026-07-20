@@ -12,7 +12,9 @@
  */
 
 import { eq, inArray } from "drizzle-orm";
+import { cache } from "react";
 
+import { getCurrentProfile } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
 
@@ -71,8 +73,15 @@ function readOverrides(raw: unknown): AccessOverrides {
  * Ambil scope akses untuk user yang sedang login.
  * Mengembalikan null jika user tidak ditemukan.
  */
-export async function getScope(userId: string | null): Promise<Scope | null> {
-  if (!userId) return null;
+const loadScopeProfile = cache(async (userId: string) => {
+  const currentProfile = await getCurrentProfile();
+  if (currentProfile?.id === userId) {
+    return {
+      id: currentProfile.id,
+      role: currentProfile.role,
+      accessOverrides: currentProfile.accessOverrides,
+    };
+  }
 
   const [profile] = await db
     .select({
@@ -84,6 +93,31 @@ export async function getScope(userId: string | null): Promise<Scope | null> {
     .where(eq(profiles.id, userId))
     .limit(1);
 
+  return profile ?? null;
+});
+
+const loadMemberIdsByReferrer = cache(async (referrerId: string) => {
+  const members = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(eq(profiles.referredBy, referrerId));
+
+  return members.map((member) => member.id);
+});
+
+const loadStaffIdsByLeader = cache(async (leaderId: string) => {
+  const staffRows = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(eq(profiles.leaderId, leaderId));
+
+  return staffRows.map((staff) => staff.id);
+});
+
+export const getScope = cache(async (userId: string | null): Promise<Scope | null> => {
+  if (!userId) return null;
+
+  const profile = await loadScopeProfile(userId);
   if (!profile) return null;
 
   const role = profile.role as AdminRole;
@@ -100,27 +134,17 @@ export async function getScope(userId: string | null): Promise<Scope | null> {
   }
 
   if (role === "admin_staff") {
-    const members = await db
-      .select({ id: profiles.id })
-      .from(profiles)
-      .where(eq(profiles.referredBy, profile.id));
     return {
       actorId: profile.id,
       role,
-      memberIds: members.map((m) => m.id),
+      memberIds: await loadMemberIdsByReferrer(profile.id),
       unrestricted: overrides.fullAccess === true,
       overrides,
     };
   }
 
   if (role === "admin_leader") {
-    // Aggregate: member yang referred_by = staff dengan leader_id = leader.id
-    const staffRows = await db
-      .select({ id: profiles.id })
-      .from(profiles)
-      .where(eq(profiles.leaderId, profile.id));
-
-    const staffIds = staffRows.map((s) => s.id);
+    const staffIds = await loadStaffIdsByLeader(profile.id);
     if (staffIds.length === 0) {
       return {
         actorId: profile.id,
@@ -151,7 +175,7 @@ export async function getScope(userId: string | null): Promise<Scope | null> {
     unrestricted: false,
     overrides,
   };
-}
+});
 
 /**
  * Cek apakah actor boleh mengakses target member.

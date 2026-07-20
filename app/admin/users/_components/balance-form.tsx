@@ -3,7 +3,6 @@ import { Loader2 } from "lucide-react";
 import StatusMessage from "./status-message";
 import { FieldError, initialState, inputClass, primaryBtn } from "./edit-member-modal";
 import { Member } from "./members-table";
-import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useTransition } from "react";
 import { adjustMemberBalance } from "@/lib/actions/member-tools";
 
@@ -14,16 +13,14 @@ export default function BalanceForm({
   member: Member;
   onSaved: (m: Member) => void;
 }) {
-  const router = useRouter();
   const [state, action] = useActionState(adjustMemberBalance, initialState);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     if (state.success) {
       onSaved({ ...member });
-      router.refresh();
     }
-  }, [state.success, member, onSaved, router]);
+  }, [state.success, member, onSaved]);
 
   return (
     <form

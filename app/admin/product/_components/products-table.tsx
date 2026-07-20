@@ -31,7 +31,6 @@ export function ProductsTable({
 }: {
   initialProducts: Product[];
 }) {
-  const [products, setProducts] = useState<Product[]>(initialProducts);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<Product | null>(null);
@@ -39,9 +38,9 @@ export function ProductsTable({
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    if (!q) return products;
-    return products.filter((p) => p.name.toLowerCase().includes(q));
-  }, [products, query]);
+    if (!q) return initialProducts;
+    return initialProducts.filter((p) => p.name.toLowerCase().includes(q));
+  }, [initialProducts, query]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const currentPage = Math.min(page, totalPages);
@@ -102,7 +101,7 @@ export function ProductsTable({
                     colSpan={5}
                     className="px-3 py-8 text-center text-xs text-zinc-500 sm:text-sm"
                   >
-                    {products.length === 0
+                    {initialProducts.length === 0
                       ? "Belum ada produk. Klik \"Tambah Produk\" untuk mulai."
                       : "Tidak ada produk yang cocok."}
                   </td>
@@ -154,9 +153,7 @@ export function ProductsTable({
                         </button>
                         <DeleteButton
                           id={p.id}
-                          onDeleted={() =>
-                            setProducts((cur) => cur.filter((x) => x.id !== p.id))
-                          }
+                          onDeleted={() => {}}
                         />
                       </div>
                     </td>
@@ -184,8 +181,7 @@ export function ProductsTable({
         <ProductFormModal
           mode="create"
           onClose={() => setCreating(false)}
-          onSaved={(p) => {
-            setProducts((cur) => [p, ...cur]);
+          onSaved={() => {
             setCreating(false);
           }}
         />
@@ -195,8 +191,7 @@ export function ProductsTable({
           mode="edit"
           product={editing}
           onClose={() => setEditing(null)}
-          onSaved={(p) => {
-            setProducts((cur) => cur.map((x) => (x.id === p.id ? p : x)));
+          onSaved={() => {
             setEditing(null);
           }}
         />

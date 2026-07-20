@@ -40,6 +40,7 @@ export const withdrawals = pgTable(
   },
   (table) => [
     index("withdrawals_member_id_idx").on(table.memberId),
+    index("withdrawals_member_created_idx").on(table.memberId, table.createdAt),
     index("withdrawals_status_idx").on(table.status),
     index("withdrawals_status_created_idx").on(table.status, table.createdAt),
     index("withdrawals_bank_account_id_idx").on(table.bankAccountId),

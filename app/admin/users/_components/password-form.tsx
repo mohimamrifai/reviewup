@@ -2,7 +2,6 @@ import { Loader2 } from "lucide-react";
 import { FieldError, initialState, inputClass, primaryBtn, tabBtnClass } from "./edit-member-modal";
 import StatusMessage from "./status-message";
 import { Member } from "./members-table";
-import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { resetMemberLoginPassword, resetMemberWithdrawPassword } from "@/lib/actions/member-tools";
 
@@ -20,7 +19,6 @@ export default function PasswordForm({
   member: Member;
   onSaved: (m: Member) => void;
 }) {
-  const router = useRouter();
   const [tab, setTab] = useState<PasswordTab>("login");
   const [loginState, loginAction] = useActionState(resetMemberLoginPassword, initialState);
   const [withdrawState, withdrawAction] = useActionState(
@@ -32,9 +30,8 @@ export default function PasswordForm({
   useEffect(() => {
     if (loginState.success || withdrawState.success) {
       onSaved({ ...member });
-      router.refresh();
     }
-  }, [loginState.success, withdrawState.success, member, onSaved, router]);
+  }, [loginState.success, withdrawState.success, member, onSaved]);
 
   const isLogin = tab === "login";
   const state = isLogin ? loginState : withdrawState;

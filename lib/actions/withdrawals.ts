@@ -9,7 +9,7 @@ import {
   MIN_WITHDRAWAL_AMOUNT,
 } from "@/lib/constants/withdrawal";
 import { db } from "@/lib/db";
-import { bankAccounts, profiles, withdrawals } from "@/lib/db/schema";
+import { auditLogs, bankAccounts, profiles, withdrawals } from "@/lib/db/schema";
 import { getCurrentUser } from "@/lib/auth/session";
 
 const withdrawSchema = z.object({
@@ -126,11 +126,23 @@ export async function submitWithdrawal(
   }
 
   // Insert withdrawal row
-  await db.insert(withdrawals).values({
+  const [created] = await db.insert(withdrawals).values({
     memberId: user.id,
     bankAccountId: parsed.data.bankAccountId,
     amount: amountStr,
     status: "pending",
+  }).returning({ id: withdrawals.id });
+
+  await db.insert(auditLogs).values({
+    actorId: user.id,
+    targetId: user.id,
+    action: "withdrawal_submitted",
+    amount: amountStr,
+    note: `Pengajuan penarikan #${created.id} dibuat.`,
+    metadata: JSON.stringify({
+      withdrawalId: created.id,
+      amount: parsed.data.amount,
+    }),
   });
 
   revalidatePath("/withdraw");

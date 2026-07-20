@@ -5,7 +5,8 @@ import { revalidatePath, refresh } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
-import { products } from "@/lib/db/schema";
+import { auditLogs, products } from "@/lib/db/schema";
+import { getCurrentUser } from "@/lib/auth/session";
 import {
   attachUploadedFileToProduct,
   deleteUploadedFileByUrl,
@@ -74,6 +75,7 @@ export async function createProduct(
   _prev: ProductState,
   formData: FormData,
 ): Promise<ProductState> {
+  const actorId = (await getCurrentUser())?.id ?? null;
   const parsed = productSchema.safeParse({
     name: formData.get("name"),
     price: Number(String(formData.get("price") ?? "").replace(/[^\d]/g, "")),
@@ -108,6 +110,14 @@ export async function createProduct(
       });
 
     await attachUploadedFileToProduct(upload.path, createdProduct.id);
+    if (actorId) {
+      await db.insert(auditLogs).values({
+        actorId,
+        targetId: null,
+        action: "product_created",
+        note: `Produk ${createdProduct.name} ditambahkan.`,
+      });
+    }
     revalidatePath("/admin/product");
     revalidatePath("/admin/task");
     revalidatePath("/");
@@ -140,6 +150,15 @@ export async function createProduct(
       isActive: products.isActive,
     });
 
+  if (actorId) {
+    await db.insert(auditLogs).values({
+      actorId,
+      targetId: null,
+      action: "product_created",
+      note: `Produk ${createdProduct.name} ditambahkan.`,
+    });
+  }
+
   revalidatePath("/admin/product");
   revalidatePath("/admin/task");
   revalidatePath("/");
@@ -160,6 +179,7 @@ export async function updateProduct(
   _prev: ProductState,
   formData: FormData,
 ): Promise<ProductState> {
+  const actorId = (await getCurrentUser())?.id ?? null;
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
     return { error: "ID produk tidak valid." };
@@ -210,6 +230,15 @@ export async function updateProduct(
       isActive: products.isActive,
     });
 
+  if (actorId) {
+    await db.insert(auditLogs).values({
+      actorId,
+      targetId: null,
+      action: "product_updated",
+      note: `Produk ${updatedProduct.name} diperbarui.`,
+    });
+  }
+
   revalidatePath("/admin/product");
   revalidatePath("/admin/task");
   revalidatePath("/");
@@ -230,6 +259,7 @@ export async function deleteProduct(
   _prev: ProductState,
   formData: FormData,
 ): Promise<ProductState> {
+  const actorId = (await getCurrentUser())?.id ?? null;
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
     return { error: "ID produk tidak valid." };
@@ -246,6 +276,14 @@ export async function deleteProduct(
   }
 
   await db.delete(products).where(eq(products.id, id));
+  if (actorId) {
+    await db.insert(auditLogs).values({
+      actorId,
+      targetId: null,
+      action: "product_deleted",
+      note: `Produk #${id} dihapus.`,
+    });
+  }
   revalidatePath("/admin/product");
   revalidatePath("/admin/task");
   revalidatePath("/");

@@ -77,7 +77,10 @@ export const profiles = pgTable(
     uniqueIndex("profiles_username_idx").on(table.username),
     uniqueIndex("profiles_referral_code_idx").on(table.referralCode),
     index("profiles_referred_by_idx").on(table.referredBy),
+    index("profiles_referred_by_created_at_idx").on(table.referredBy, table.createdAt),
     index("profiles_role_idx").on(table.role),
+    index("profiles_role_created_at_idx").on(table.role, table.createdAt),
     index("profiles_leader_id_idx").on(table.leaderId),
+    index("profiles_leader_id_role_idx").on(table.leaderId, table.role),
   ],
 );

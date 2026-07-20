@@ -33,6 +33,7 @@ export const bankAccounts = pgTable(
   },
   (table) => [
     index("bank_accounts_user_id_idx").on(table.userId),
+    index("bank_accounts_user_created_idx").on(table.userId, table.createdAt),
     uniqueIndex("bank_accounts_primary_idx")
       .on(table.userId)
       .where(sql`${table.isPrimary} = true`),

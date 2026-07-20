@@ -76,13 +76,12 @@ export function WithdrawsTable({
 }: {
   initialWithdraws: Withdraw[];
 }) {
-  const [withdraws, setWithdraws] = useState<Withdraw[]>(initialWithdraws);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    return withdraws.filter((w) => {
+    return initialWithdraws.filter((w) => {
       if (statusFilter !== "all" && w.status !== statusFilter) return false;
       if (!q) return true;
       return (
@@ -91,7 +90,7 @@ export function WithdrawsTable({
         w.accountNumber.includes(q)
       );
     });
-  }, [withdraws, query, statusFilter]);
+  }, [initialWithdraws, query, statusFilter]);
 
   const totalAmount = useMemo(() => {
     return filtered
@@ -154,7 +153,7 @@ export function WithdrawsTable({
                   colSpan={8}
                   className="px-3 py-6 text-center text-xs text-zinc-500 sm:text-sm"
                 >
-                  {withdraws.length === 0
+                  {initialWithdraws.length === 0
                     ? "Belum ada pengajuan penarikan."
                     : "Tidak ada data yang cocok."}
                 </td>
@@ -164,11 +163,7 @@ export function WithdrawsTable({
                 <Row
                   key={w.id}
                   withdraw={w}
-                  onUpdated={(updated) =>
-                    setWithdraws((cur) =>
-                      cur.map((x) => (x.id === updated.id ? updated : x)),
-                    )
-                  }
+                  onUpdated={() => {}}
                 />
               ))
             )}
@@ -178,4 +173,3 @@ export function WithdrawsTable({
     </div>
   );
 }
-

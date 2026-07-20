@@ -37,5 +37,11 @@ export const depositBankAccounts = pgTable(
       .notNull()
       .default(sql`now()`),
   },
-  (table) => [index("deposit_bank_accounts_is_active_idx").on(table.isActive)],
+  (table) => [
+    index("deposit_bank_accounts_is_active_idx").on(table.isActive),
+    index("deposit_bank_accounts_active_created_idx").on(
+      table.isActive,
+      table.createdAt,
+    ),
+  ],
 );

@@ -7,9 +7,9 @@ import { z } from "zod";
 
 import { assertCanAccessMember, getScope } from "@/lib/access";
 import { auth } from "@/lib/auth";
+import { requireCurrentAdminProfile } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { auditLogs, profiles } from "@/lib/db/schema";
-import { getCurrentUser } from "@/lib/auth/session";
 
 export type MemberToolState = {
   error?: string;
@@ -19,18 +19,7 @@ export type MemberToolState = {
 };
 
 async function requireAdmin(): Promise<string> {
-  const user = await getCurrentUser();
-  if (!user) throw new Error("UNAUTHENTICATED");
-
-  const [profile] = await db
-    .select({ role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-  if (!profile || profile.role === "member") {
-    throw new Error("FORBIDDEN");
-  }
-  return user.id;
+  return (await requireCurrentAdminProfile()).id;
 }
 
 function handleAuthError(e: unknown): MemberToolState {
@@ -46,9 +35,8 @@ function handleAuthError(e: unknown): MemberToolState {
  * Throw `FORBIDDEN_SCOPE` jika di luar scope, `UNAUTHENTICATED` jika tidak login.
  */
 async function assertScopeForMember(memberId: string): Promise<void> {
-  const user = await getCurrentUser();
-  if (!user) throw new Error("UNAUTHENTICATED");
-  const scope = await getScope(user.id);
+  const profile = await requireCurrentAdminProfile();
+  const scope = await getScope(profile.id);
   if (!scope) throw new Error("FORBIDDEN");
   try {
     assertCanAccessMember(scope, memberId);

@@ -10,6 +10,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { deposits, profiles, withdrawals } from "@/lib/db/schema";
+import { getMonthStart, parseLocalDateInput, toLocalISODate } from "@/lib/date-range";
 
 // ===== Staff di bawah leader =====
 
@@ -244,19 +245,19 @@ export async function getStaffDetailStats(
   // Tentukan range 12 bulan terakhir (atau sesuai filter)
   const now = new Date();
   const fromDefault = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-  const fromDate = range?.from ? new Date(range.from) : fromDefault;
-  const toDate = range?.to ? new Date(range.to) : now;
+  const fromDate = parseLocalDateInput(range?.from) ?? fromDefault;
+  const toDate = parseLocalDateInput(range?.to, true) ?? now;
 
   // Normalize to date-only (no time)
-  const fromStr = fromDate.toISOString().slice(0, 10);
-  const toStr = toDate.toISOString().slice(0, 10);
+  const fromStr = toLocalISODate(fromDate);
+  const toStr = toLocalISODate(toDate);
 
   // Hitung semua bulan dalam range
   const months: string[] = [];
-  const cursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
-  const end = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
+  const cursor = getMonthStart(fromDate);
+  const end = getMonthStart(toDate);
   while (cursor <= end) {
-    months.push(cursor.toISOString().slice(0, 10));
+    months.push(toLocalISODate(cursor));
     cursor.setMonth(cursor.getMonth() + 1);
   }
 

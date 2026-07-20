@@ -170,6 +170,17 @@ export async function reviewWithdrawal(
         error: "Penarikan tidak ditemukan, sudah diproses, atau saldo beku tidak cukup.",
       };
     }
+
+    await db.insert(auditLogs).values({
+      actorId: adminId,
+      targetId: wdRow.memberId,
+      action: "withdrawal_completed",
+      note: `Penarikan #${parsed.data.id} diselesaikan.`,
+      metadata: JSON.stringify({
+        withdrawalId: parsed.data.id,
+        notes: finalNotes,
+      }),
+    });
   } else {
     // Reject: kembalikan ke saldo (tambah balance, kurangi frozen)
     const updated = await db.execute<{ id: number; member_id: string }>(sql`
@@ -196,6 +207,18 @@ export async function reviewWithdrawal(
         error: "Penarikan tidak ditemukan, sudah diproses, atau saldo beku tidak cukup.",
       };
     }
+
+    await db.insert(auditLogs).values({
+      actorId: adminId,
+      targetId: wdRow.memberId,
+      action: "withdrawal_rejected",
+      note: `Penarikan #${parsed.data.id} ditolak.`,
+      metadata: JSON.stringify({
+        withdrawalId: parsed.data.id,
+        notes: finalNotes,
+        reasonCode,
+      }),
+    });
 
     // Auto-ban member jika reason code termasuk auto-ban list
     // (sesuai PRD: "rekening tidak valid" / "penipuan" / "akun mencurigakan")

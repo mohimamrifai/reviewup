@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
 
+import { RealtimeBridge } from "./_components/realtime-bridge";
 import { ToastProvider } from "./_components/toast";
 
 const poppins = Poppins({
@@ -27,7 +28,10 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          <RealtimeBridge />
+          {children}
+        </ToastProvider>
       </body>
     </html>
   );

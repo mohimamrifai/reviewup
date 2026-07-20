@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { type Scope, getScope } from "@/lib/access";
 import { db } from "@/lib/db";
-import { depositBankAccounts } from "@/lib/db/schema";
+import { auditLogs, depositBankAccounts } from "@/lib/db/schema";
 import { getCurrentUser } from "@/lib/auth/session";
 
 const baseSchema = z.object({
@@ -110,6 +110,13 @@ export async function addDepositBankAccount(
     createdBy: actorId,
   });
 
+  await db.insert(auditLogs).values({
+    actorId,
+    targetId: null,
+    action: "deposit_bank_created",
+    note: `Rekening tujuan ${parsed.data.bankName} ditambahkan.`,
+  });
+
   revalidatePath("/admin/deposit-bank");
   revalidatePath("/recharge");
   refresh();
@@ -120,8 +127,9 @@ export async function updateDepositBankAccount(
   _prev: DepositBankAccountState,
   formData: FormData,
 ): Promise<DepositBankAccountState> {
+  let actorId: string;
   try {
-    await requireBankAccountManager();
+    ({ actorId } = await requireBankAccountManager());
   } catch (e) {
     return handleAuthError(e);
   }
@@ -148,6 +156,13 @@ export async function updateDepositBankAccount(
     })
     .where(eq(depositBankAccounts.id, parsed.data.accountId));
 
+  await db.insert(auditLogs).values({
+    actorId,
+    targetId: null,
+    action: "deposit_bank_updated",
+    note: `Rekening tujuan #${parsed.data.accountId} diperbarui.`,
+  });
+
   revalidatePath("/admin/deposit-bank");
   revalidatePath("/recharge");
   refresh();
@@ -158,8 +173,9 @@ export async function deleteDepositBankAccount(
   _prev: DepositBankAccountState,
   formData: FormData,
 ): Promise<DepositBankAccountState> {
+  let actorId: string;
   try {
-    await requireBankAccountManager();
+    ({ actorId } = await requireBankAccountManager());
   } catch (e) {
     return handleAuthError(e);
   }
@@ -175,6 +191,13 @@ export async function deleteDepositBankAccount(
     .delete(depositBankAccounts)
     .where(eq(depositBankAccounts.id, parsed.data.accountId));
 
+  await db.insert(auditLogs).values({
+    actorId,
+    targetId: null,
+    action: "deposit_bank_deleted",
+    note: `Rekening tujuan #${parsed.data.accountId} dihapus.`,
+  });
+
   revalidatePath("/admin/deposit-bank");
   revalidatePath("/recharge");
   refresh();
@@ -185,8 +208,9 @@ export async function toggleDepositBankAccountActive(
   _prev: DepositBankAccountState,
   formData: FormData,
 ): Promise<DepositBankAccountState> {
+  let actorId: string;
   try {
-    await requireBankAccountManager();
+    ({ actorId } = await requireBankAccountManager());
   } catch (e) {
     return handleAuthError(e);
   }
@@ -209,6 +233,15 @@ export async function toggleDepositBankAccountActive(
     .update(depositBankAccounts)
     .set({ isActive: !current.isActive, updatedAt: new Date() })
     .where(eq(depositBankAccounts.id, parsed.data.accountId));
+
+  await db.insert(auditLogs).values({
+    actorId,
+    targetId: null,
+    action: "deposit_bank_toggled",
+    note: current.isActive
+      ? `Rekening tujuan #${parsed.data.accountId} dinonaktifkan.`
+      : `Rekening tujuan #${parsed.data.accountId} diaktifkan.`,
+  });
 
   revalidatePath("/admin/deposit-bank");
   revalidatePath("/recharge");
