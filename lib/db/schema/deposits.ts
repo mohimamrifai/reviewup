@@ -36,6 +36,7 @@ export const deposits = pgTable(
   },
   (table) => [
     index("deposits_member_id_idx").on(table.memberId),
+    index("deposits_member_created_idx").on(table.memberId, table.createdAt),
     index("deposits_status_idx").on(table.status),
     index("deposits_status_created_idx").on(table.status, table.createdAt),
     index("deposits_approved_by_idx").on(table.approvedBy),

@@ -3,6 +3,7 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 import { db } from "@/lib/db";
 import { deposits, profiles, withdrawals } from "@/lib/db/schema";
+import { parseLocalDateInput } from "@/lib/date-range";
 import type { Scope } from "@/lib/access";
 
 export type DateRange = {
@@ -32,19 +33,24 @@ const EMPTY_STATS: DashboardStats = {
   totalWithdrawalAmount: 0,
 };
 
+function getTodayRange(): DateRange {
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+
+  const to = new Date();
+  to.setHours(23, 59, 59, 999);
+
+  return { from, to };
+}
+
 export function parseDateRange(
   from: string | undefined,
   to: string | undefined,
 ): DateRange | null {
   if (!from || !to) return null;
-  const fromDate = new Date(from);
-  const toDate = new Date(to);
-  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
-    return null;
-  }
-  // Normalisasi to-date ke akhir hari (23:59:59)
-  toDate.setHours(23, 59, 59, 999);
-  fromDate.setHours(0, 0, 0, 0);
+  const fromDate = parseLocalDateInput(from);
+  const toDate = parseLocalDateInput(to, true);
+  if (!fromDate || !toDate) return null;
   if (fromDate > toDate) return null;
   return { from: fromDate, to: toDate };
 }
@@ -84,6 +90,10 @@ export async function getDashboardStats(
   const memberFilter = scopeFilter(scope, profiles.id);
   const depositMemberFilter = scopeFilter(scope, deposits.memberId);
   const withdrawalMemberFilter = scopeFilter(scope, withdrawals.memberId);
+  const activityRange = range ?? getTodayRange();
+
+  const inRange = (col: AnyPgColumn): SQL | undefined =>
+    and(gte(col, activityRange.from), lte(col, activityRange.to));
 
   // Total member dalam scope (selalu, tidak tergantung range)
   const [memberRow] = await db
@@ -97,85 +107,76 @@ export async function getDashboardStats(
     );
   const totalMembers = memberRow?.count ?? 0;
 
-  if (!range) {
-    // Mode "Sepanjang Waktu" - tampilkan total keseluruhan (dalam scope)
-    const [depRow] = await db
+  const [
+    regRows,
+    depReqRows,
+    depApprovedRows,
+    wdCompletedRows,
+    totalDepRows,
+    totalWdRows,
+  ] = await Promise.all([
+    db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(profiles)
+      .where(
+        and(
+          eq(profiles.role, "member"),
+          inRange(profiles.createdAt),
+          memberFilter,
+        ),
+      ),
+    db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(deposits)
+      .where(and(inRange(deposits.createdAt), depositMemberFilter)),
+    db
       .select({ total: sql<string>`COALESCE(SUM(${deposits.amount}), 0)` })
       .from(deposits)
       .where(
-        and(eq(deposits.status, "approved"), depositMemberFilter),
-      );
-    const [wdRow] = await db
+        and(
+          eq(deposits.status, "approved"),
+          inRange(deposits.createdAt),
+          depositMemberFilter,
+        ),
+      ),
+    db
       .select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), 0)` })
       .from(withdrawals)
       .where(
-        and(eq(withdrawals.status, "completed"), withdrawalMemberFilter),
-      );
-
-    const totalDeposit = Number(depRow?.total ?? 0);
-    const totalWithdrawal = Number(wdRow?.total ?? 0);
-
-    return {
-      ...EMPTY_STATS,
-      totalMembers,
-      totalDepositAmount: totalDeposit,
-      totalWithdrawalAmount: totalWithdrawal,
-    };
-  }
-
-  // Mode dengan rentang tanggal
-  const inRange = (col: AnyPgColumn): SQL | undefined =>
-    and(gte(col, range.from), lte(col, range.to));
-
-  const [regRow] = await db
-    .select({ count: sql<number>`COUNT(*)::int` })
-    .from(profiles)
-    .where(
-      and(
-        eq(profiles.role, "member"),
-        inRange(profiles.createdAt),
-        memberFilter,
+        and(
+          eq(withdrawals.status, "completed"),
+          inRange(withdrawals.createdAt),
+          withdrawalMemberFilter,
+        ),
       ),
-    );
-
-  const [depReqRow] = await db
-    .select({ count: sql<number>`COUNT(*)::int` })
-    .from(deposits)
-    .where(and(inRange(deposits.createdAt), depositMemberFilter));
-
-  const [depApprovedRow] = await db
-    .select({ total: sql<string>`COALESCE(SUM(${deposits.amount}), 0)` })
-    .from(deposits)
-    .where(
-      and(
-        eq(deposits.status, "approved"),
-        inRange(deposits.createdAt),
-        depositMemberFilter,
+    db
+      .select({ total: sql<string>`COALESCE(SUM(${deposits.amount}), 0)` })
+      .from(deposits)
+      .where(
+        and(
+          eq(deposits.status, "approved"),
+          range ? inRange(deposits.createdAt) : undefined,
+          depositMemberFilter,
+        ),
       ),
-    );
-
-  const [wdCompletedRow] = await db
-    .select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), 0)` })
-    .from(withdrawals)
-    .where(
-      and(
-        eq(withdrawals.status, "completed"),
-        inRange(withdrawals.createdAt),
-        withdrawalMemberFilter,
+    db
+      .select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), 0)` })
+      .from(withdrawals)
+      .where(
+        and(
+          eq(withdrawals.status, "completed"),
+          range ? inRange(withdrawals.createdAt) : undefined,
+          withdrawalMemberFilter,
+        ),
       ),
-    );
+  ]);
 
-  const [totalDepRow] = await db
-    .select({ total: sql<string>`COALESCE(SUM(${deposits.amount}), 0)` })
-    .from(deposits)
-    .where(and(eq(deposits.status, "approved"), depositMemberFilter));
-
-  const [totalWdRow] = await db
-    .select({ total: sql<string>`COALESCE(SUM(${withdrawals.amount}), 0)` })
-    .from(withdrawals)
-    .where(
-      and(eq(withdrawals.status, "completed"), withdrawalMemberFilter),
-    );
+  const [regRow] = regRows;
+  const [depReqRow] = depReqRows;
+  const [depApprovedRow] = depApprovedRows;
+  const [wdCompletedRow] = wdCompletedRows;
+  const [totalDepRow] = totalDepRows;
+  const [totalWdRow] = totalWdRows;
 
   const rangeDeposit = Number(depApprovedRow?.total ?? 0);
   const rangeWithdrawal = Number(wdCompletedRow?.total ?? 0);

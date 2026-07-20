@@ -3,7 +3,6 @@ import { FieldError, initialState, inputClass, primaryBtn, secondaryBtn } from "
 import StatusMessage from "./status-message";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { Member } from "./members-table";
-import { useRouter } from "next/navigation";
 import { setMemberWithdrawLock } from "@/lib/actions/member-tools";
 
 export default function WithdrawStatusForm({
@@ -13,7 +12,6 @@ export default function WithdrawStatusForm({
   member: Member;
   onSaved: (m: Member) => void;
 }) {
-  const router = useRouter();
   const [state, action] = useActionState(setMemberWithdrawLock, initialState);
   const [pending, startTransition] = useTransition();
   const initialLocked = member.status === "banned";
@@ -24,7 +22,6 @@ export default function WithdrawStatusForm({
   useEffect(() => {
     if (state.success) {
       onSaved({ ...member });
-      router.refresh();
       // Reset state lokal dipicu oleh transisi state.success dari server action
       // (bukan derivasi dari state lain), jadi dipanggil di useEffect adalah pola
       // yang benar. Disable rule `react-hooks/set-state-in-effect` untuk baris ini.
@@ -32,7 +29,7 @@ export default function WithdrawStatusForm({
       setReason("");
       setConfirmOpen(false);
     }
-  }, [state.success, member, onSaved, router]);
+  }, [state.success, member, onSaved]);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

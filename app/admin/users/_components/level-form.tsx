@@ -4,7 +4,6 @@ import type { Member, MemberLevel } from "./members-table";
 import { useActionState, useEffect, useTransition } from "react";
 import { updateMemberCreditScore, updateMemberLevel } from "@/lib/actions/member-tools";
 import { FieldError, initialState, inputClass, primaryBtn } from "./edit-member-modal";
-import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 const LEVEL_OPTIONS: { value: MemberLevel; label: string }[] = [
@@ -23,7 +22,6 @@ export default function LevelForm({
   member: Member;
   onSaved: (m: Member) => void;
 }) {
-  const router = useRouter();
   const [levelState, levelAction] = useActionState(updateMemberLevel, initialState);
   const [scoreState, scoreAction] = useActionState(updateMemberCreditScore, initialState);
   const [pending, startTransition] = useTransition();
@@ -31,15 +29,13 @@ export default function LevelForm({
   useEffect(() => {
     if (levelState.success) {
       onSaved({ ...member });
-      router.refresh();
     }
-  }, [levelState.success, member, onSaved, router]);
+  }, [levelState.success, member, onSaved]);
   useEffect(() => {
     if (scoreState.success) {
       onSaved({ ...member });
-      router.refresh();
     }
-  }, [scoreState.success, member, onSaved, router]);
+  }, [scoreState.success, member, onSaved]);
 
   return (
     <div className="space-y-3">

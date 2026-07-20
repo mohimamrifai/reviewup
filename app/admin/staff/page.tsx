@@ -3,18 +3,11 @@ import { redirect } from "next/navigation";
 
 import { db } from "@/lib/db";
 import { deposits, profiles, withdrawals } from "@/lib/db/schema";
+import { getMonthStart, parseLocalDateInput, toLocalISODate } from "@/lib/date-range";
 import { getCurrentUser } from "@/lib/auth/session";
 
 import { StaffsTable } from "./_components/staffs-table";
 import { StaffDateRange } from "./_components/staff-date-range";
-
-// Format tanggal local ISO (YYYY-MM-DD) untuk filter created_at.
-function toLocalISODate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
 
 function getThisMonthRange(): {
   fromDate: Date;
@@ -23,21 +16,13 @@ function getThisMonthRange(): {
   to: string;
 } {
   const now = new Date();
-  const fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  const fromDate = getMonthStart(now);
   return {
     fromDate,
     toDate: now,
     from: toLocalISODate(fromDate),
     to: toLocalISODate(now),
   };
-}
-
-function parseISODate(value: string, endOfDay = false): Date | null {
-  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return null;
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  if (endOfDay) d.setHours(23, 59, 59, 999);
-  return d;
 }
 
 function formatDateID(d: Date): string {
@@ -72,8 +57,8 @@ export default async function AdminStaffsPage({
   // 1. Tentukan rentang tanggal. Default = bulan ini.
   const params = await searchParams;
   const thisMonth = getThisMonthRange();
-  let fromDate: Date | null = parseISODate(params.from ?? thisMonth.from);
-  let toDate: Date | null = parseISODate(params.to ?? thisMonth.to, true);
+  let fromDate: Date | null = parseLocalDateInput(params.from ?? thisMonth.from);
+  let toDate: Date | null = parseLocalDateInput(params.to ?? thisMonth.to, true);
   if (!fromDate) fromDate = thisMonth.fromDate;
   if (!toDate) toDate = thisMonth.toDate;
   if (fromDate > toDate) {
