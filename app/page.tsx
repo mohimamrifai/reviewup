@@ -1,18 +1,12 @@
 import Image from "next/image";
 import { desc, eq } from "drizzle-orm";
 import {
-  Footprints,
-  Headphones,
   Package,
-  Shirt,
-  Tv,
-  Wallet,
-  Watch,
-  Wind,
 } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { products as productsTable } from "@/lib/db/schema";
+import fallbackProducts from "./_components/fallback-data";
 
 import { BottomNav } from "./_components/bottom-nav";
 import { PartnerStrip } from "./_components/partner-strip";
@@ -20,73 +14,7 @@ import { ProductCard } from "./_components/product-card";
 import { PromoMarquee } from "./_components/promo-marquee";
 import { TopBar } from "./_components/top-bar";
 
-// Homepage selalu render dinamis agar produk dari DB selalu fresh.
-export const dynamic = "force-dynamic";
-
-// Hardcoded fallback: dipakai saat database tidak punya produk aktif,
-// supaya tampilan tetap konsisten & tidak kosong.
-const fallbackProducts = [
-  {
-    id: "1",
-    title: "JAM TANGAN ALEXANDRE CHRISTIE AC 8161 COUPLE MURAH.",
-    price: "Rp2.350.000",
-    icon: Watch,
-  },
-  {
-    id: "2",
-    title:
-      "SMILE&ART Junior Hoodie II SMILE&ART Sweater Hoodie II Sweater Olbring…",
-    price: "Rp38.950",
-    icon: Shirt,
-  },
-  {
-    id: "3",
-    title: "TZ BAJU SWEATSHIRT PRIA PR SANTAI GUNUNG DISTRO KEREN M…",
-    price: "Rp38.461",
-    icon: Shirt,
-  },
-  {
-    id: "4",
-    title: "TTWS M19 HEADSET",
-    price: "Rp31.500",
-    icon: Headphones,
-  },
-  {
-    id: "5",
-    title:
-      "DWEBLIES kipas mini portable angin kipas L size Portable Digital Display…",
-    price: "Rp69.000",
-    icon: Wind,
-  },
-  {
-    id: "6",
-    title:
-      "Dompet Wanita Aurora Bordir Premium Berkualitas Dompet Pendek Genggam",
-    price: "Rp15.900",
-    icon: Wallet,
-  },
-  {
-    id: "7",
-    title:
-      "MXQ PRO Android TV Box 4K HD Smart Set Top Box 64GB Ram 512GB Rom…",
-    price: "Rp184.900",
-    icon: Tv,
-  },
-  {
-    id: "8",
-    title:
-      "Sandal Pria keren Sandal slip on Pria santai Gunung Pria original 100 cowok k…",
-    price: "Rp102.900",
-    icon: Footprints,
-  },
-];
-
-/** Format number ke "Rp1.234.567" tanpa desimal. */
-function formatRupiah(value: number | string): string {
-  const n = typeof value === "string" ? Number(value) : value;
-  if (!Number.isFinite(n)) return "Rp -";
-  return "Rp" + Math.round(n).toLocaleString("id-ID");
-}
+import formatRupiah from "@/lib/format-rupiah";
 
 export default async function HomePage() {
   // Tarik produk aktif dari database (maks 8 agar jumlah card konsisten).
