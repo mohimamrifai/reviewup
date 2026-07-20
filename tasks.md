@@ -7,11 +7,12 @@
 
 
 yang harus kamu kerjakan :
-- rombak total
-- hapus kode kode supabase
-- website saat ini lambat sekali
-- data terbaru harus di referesh untuk di lihat
-- CRUD juga sama
+- buat branch baru dengan nama "upgrade"
+- optimasi dan optimalkan kecepatan website
+- saya ingin website ini benar benar realtime
+- masih banyak halaman, CRUD yang harus di refresh untuk melihat data terbaru atau data perubahan
+- feedback ke user kurang, tidak ada toast atau informasi ketika user melakukan sesuai
+- karena sepertinya notification juga tidak di implementasikan dan tidak realtime
 
 
 batasan :
