@@ -125,27 +125,65 @@ export async function adminSignIn(
   redirect("/admin/dashboard");
 }
 
-function describeBetterAuthError(err: unknown): string {
-  if (!err) return "Unknown error (no details returned).";
-  if (typeof err === "string") return err;
+type BetterAuthErrorLike = {
+  message?: string;
+  status?: number;
+  code?: string;
+  body?: {
+    message?: string;
+    code?: string;
+  };
+};
+
+function extractBetterAuthError(err: unknown): BetterAuthErrorLike {
+  if (!err) return {};
+  if (typeof err === "string") return { message: err };
   if (err instanceof Error) {
-    const anyErr = err as Error & {
-      status?: number;
-      code?: string;
-      body?: { message?: string; code?: string };
+    return err as Error & BetterAuthErrorLike;
+  }
+  if (typeof err === "object") {
+    return err as BetterAuthErrorLike;
+  }
+  return { message: String(err) };
+}
+
+function mapRegisterAuthError(err: unknown): AuthState {
+  const detail = extractBetterAuthError(err);
+  const rawCode = detail.body?.code ?? detail.code ?? "";
+  const code = rawCode.toUpperCase();
+  const message = (detail.body?.message ?? detail.message ?? "").toLowerCase();
+
+  if (code === "PASSWORD_TOO_SHORT" || message.includes("password too short")) {
+    return {
+      fieldErrors: {
+        kataSandi: ["Kata sandi minimal 6 karakter."],
+      },
     };
-    const parts: string[] = [];
-    if (anyErr.message) parts.push(anyErr.message);
-    if (anyErr.body?.message) parts.push(`msg=${anyErr.body.message}`);
-    if (anyErr.body?.code) parts.push(`code=${anyErr.body.code}`);
-    if (anyErr.status !== undefined) parts.push(`http=${anyErr.status}`);
-    return parts.length > 0 ? parts.join(" | ") : err.toString();
   }
-  try {
-    return JSON.stringify(err);
-  } catch {
-    return String(err);
+
+  if (code === "PASSWORD_TOO_LONG" || message.includes("password too long")) {
+    return {
+      fieldErrors: {
+        kataSandi: ["Kata sandi terlalu panjang."],
+      },
+    };
   }
+
+  if (
+    code === "USER_ALREADY_EXISTS" ||
+    code === "EMAIL_ALREADY_EXISTS" ||
+    message.includes("already exists")
+  ) {
+    return {
+      fieldErrors: {
+        namaPengguna: ["Nama pengguna sudah dipakai."],
+      },
+    };
+  }
+
+  return {
+    error: "Terjadi kendala saat membuat akun. Silakan coba lagi.",
+  };
 }
 
 /**
@@ -214,7 +252,7 @@ export async function signUp(
     });
   } catch (error) {
     console.error("[signUp] createUser error:", { username, error });
-    return { error: describeBetterAuthError(error) };
+    return mapRegisterAuthError(error);
   }
 
   if (!createdUser?.user) {

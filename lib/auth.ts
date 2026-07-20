@@ -57,6 +57,7 @@ export const auth = betterAuth({
     // Tetap aktif karena username plugin hanya menambah login-by-username.
     // Proses sign-up tetap melewati email+password dengan synthetic email.
     enabled: true,
+    minPasswordLength: 6,
   },
   plugins: [
     username(),
