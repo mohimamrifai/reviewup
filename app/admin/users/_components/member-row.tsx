@@ -4,6 +4,7 @@ import { useActionState, useEffect, useTransition } from "react";
 import { Loader2, Lock, Pencil, Star, Unlock } from "lucide-react";
 
 import { setMemberWithdrawLock, type MemberToolState } from "@/lib/actions/member-tools";
+import { formatRupiah } from "@/lib/format-rupiah";
 
 import type { Member, MemberLevel } from "./members-table";
 
@@ -36,11 +37,6 @@ const STATUS_CLASS: Record<string, string> = {
   offline: "bg-zinc-100 text-zinc-600",
   banned: "bg-rose-100 text-rose-700",
 };
-
-function formatRupiah(value: string | number) {
-  const num = typeof value === "string" ? Number(value) : value;
-  return "Rp " + num.toLocaleString("id-ID");
-}
 
 function formatDate(iso: string) {
   const d = new Date(iso);

@@ -13,13 +13,13 @@ import {
   aksiCellClass,
   aksiHeaderClass,
   cellClass,
-  formatRupiah,
   headerCellClass,
   inputClass,
   type MemberOption,
   type ProductOption,
   type Task,
 } from "./task-shared";
+import { formatRupiah } from "@/lib/format-rupiah";
 
 export function TasksTable({
   initialTasks,

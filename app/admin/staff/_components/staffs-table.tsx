@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { Search, UserCog } from "lucide-react";
 import Link from "next/link";
 
+import { formatRupiah } from "@/lib/format-rupiah";
+
 type Staff = {
   id: string;
   username: string;
@@ -24,11 +26,6 @@ const headerCellClass =
 
 const cellClass =
   "px-3 py-2 text-xs text-zinc-700 sm:px-4 sm:py-3 sm:text-sm";
-
-function formatRupiah(value: string | number): string {
-  const num = typeof value === "string" ? Number(value) : value;
-  return "Rp " + num.toLocaleString("id-ID");
-}
 
 export function StaffsTable({
   initialStaffs,

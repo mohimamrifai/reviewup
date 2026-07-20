@@ -1,5 +1,5 @@
 import { OTHER_REASON, WITHDRAWAL_REJECTION_REASONS } from "@/lib/constants/withdrawal";
-import formatRupiah from "@/lib/format-rupiah";
+import { formatRupiah } from "@/lib/format-rupiah";
 import { Check, X } from "lucide-react";
 import { useActionState, useState } from "react";
 import { initialReview, Withdraw } from "./withdraws-table";

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Pencil, Percent } from "lucide-react";
 import Row from "./row-type";
-import formatRupiah from "@/lib/format-rupiah";
+import { formatRupiah } from "@/lib/format-rupiah";
 import EditRateModal from "./edit-rate-modal";
 
 const headerCellClass =

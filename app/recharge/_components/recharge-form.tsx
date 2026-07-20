@@ -7,6 +7,7 @@ import {
   submitDeposit,
   type DepositState,
 } from "@/lib/actions/deposits";
+import { formatRupiah } from "@/lib/format-rupiah";
 import { ImageDropzone } from "@/app/_components/image-dropzone";
 
 type Account = {
@@ -23,10 +24,6 @@ const inputClass =
 const labelClass = "text-xs font-semibold text-zinc-900 sm:text-sm";
 
 const initialState: DepositState = {};
-
-function formatRupiah(n: number): string {
-  return `Rp ${n.toLocaleString("id-ID")}`;
-}
 
 function parseAmount(s: string): number {
   return Number(s.replace(/[^\d]/g, "")) || 0;

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Check, ExternalLink, Search, X } from "lucide-react";
 
 import { reviewDeposit } from "@/lib/actions/deposits-admin";
+import { formatRupiah } from "@/lib/format-rupiah";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "Semua Status" },
@@ -49,11 +50,6 @@ type Recharge = {
   notes: string | null;
   createdAt: string;
 };
-
-function formatRupiah(value: string | number) {
-  const num = typeof value === "string" ? Number(value) : value;
-  return "Rp " + num.toLocaleString("id-ID");
-}
 
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat("id-ID", {

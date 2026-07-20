@@ -14,7 +14,7 @@ import { ProductCard } from "./_components/product-card";
 import { PromoMarquee } from "./_components/promo-marquee";
 import { TopBar } from "./_components/top-bar";
 
-import formatRupiah from "@/lib/format-rupiah";
+import { formatRupiah } from "@/lib/format-rupiah";
 
 export default async function HomePage() {
   // Tarik produk aktif dari database (maks 8 agar jumlah card konsisten).

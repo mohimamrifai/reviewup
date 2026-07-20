@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Package, Plus } from "lucide-react";
-import formatRupiah from "@/lib/format-rupiah";
+import { formatRupiah } from "@/lib/format-rupiah";
 
 import {
   type ProductState,

@@ -1,5 +1,5 @@
 import AuditLog from "./audit-log";
-import formatRupiah from "@/lib/format-rupiah";
+import { formatRupiah } from "@/lib/format-rupiah";
 import ACTION_BADGES from "./action-badges";
 import ROLE_LABELS from "./role-labels";
 import formatDate from "./format-date";

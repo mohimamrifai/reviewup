@@ -24,7 +24,7 @@ import { SecondaryActions } from "./_components/secondary-actions";
 import { SectionCard } from "./_components/section-card";
 import { ActionRow } from "./_components/action-row";
 import { BottomNav } from "../_components/bottom-nav";
-import formatRupiah from "@/lib/format-rupiah";
+import { formatRupiah } from "@/lib/format-rupiah";
 
 const TIER_LABEL: Record<string, string> = {
   classic: "Classic",

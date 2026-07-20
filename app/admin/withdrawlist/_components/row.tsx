@@ -1,7 +1,7 @@
 import { Check, X } from "lucide-react";
 import ReviewModal from "./review-modal";
 import { aksiCellClass, cellClass, formatDate, statusLabels, statusStyles, Withdraw } from "./withdraws-table";
-import formatRupiah from "@/lib/format-rupiah";
+import { formatRupiah } from "@/lib/format-rupiah";
 import { useState } from "react";
 
 export default function Row({

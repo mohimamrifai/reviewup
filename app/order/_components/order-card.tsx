@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Package } from "lucide-react";
 
 import { RatingModal } from "./rating-modal";
+import { formatRupiah } from "@/lib/format-rupiah";
 
 type StatusVariant = "blue" | "green" | "yellow" | "rose" | "amber" | "zinc";
 
@@ -32,11 +33,6 @@ type Props = {
   order: Order;
   onSubmitted: (id: number) => void;
 };
-
-function formatRupiah(value: string | number) {
-  const num = typeof value === "string" ? Number(value) : value;
-  return "Rp " + num.toLocaleString("id-ID");
-}
 
 export function OrderCard({ order, onSubmitted }: Props) {
   const [showRating, setShowRating] = useState(false);

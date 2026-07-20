@@ -9,12 +9,12 @@ import { StatusBadge, type Status } from "./status-badge";
 import {
   STATUS_EDITABLE,
   formatDate,
-  formatRupiah,
   initialReviewState,
   inputClass,
   useModalEscape,
   type Task,
 } from "./task-shared";
+import { formatRupiah } from "@/lib/format-rupiah";
 
 export function TaskStatusModal({
   task,

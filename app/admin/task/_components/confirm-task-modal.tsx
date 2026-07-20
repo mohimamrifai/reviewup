@@ -6,11 +6,11 @@ import { Loader2, X } from "lucide-react";
 import { updateTaskStatus } from "@/lib/actions/tasks-admin";
 
 import {
-  formatRupiah,
   initialReviewState,
   useModalEscape,
   type Task,
 } from "./task-shared";
+import { formatRupiah } from "@/lib/format-rupiah";
 
 export function ConfirmTaskModal({
   task,

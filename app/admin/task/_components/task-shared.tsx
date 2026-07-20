@@ -89,13 +89,6 @@ export const aksiCellClass =
 // Formatters & state awal server actions
 // ============================================================
 
-export function formatRupiah(value: string | number | null | undefined) {
-  if (value === null || value === undefined || value === "") return "Rp -";
-  const num = typeof value === "string" ? Number(value) : value;
-  if (!Number.isFinite(num)) return "Rp -";
-  return "Rp " + num.toLocaleString("id-ID");
-}
-
 export function formatDate(iso: string) {
   return new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",

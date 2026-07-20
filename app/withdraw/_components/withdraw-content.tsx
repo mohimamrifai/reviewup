@@ -8,10 +8,8 @@ import {
   submitWithdrawal,
   type WithdrawState,
 } from "@/lib/actions/withdrawals";
-import {
-  formatRupiah,
-  MIN_WITHDRAWAL_AMOUNT,
-} from "@/lib/constants/withdrawal";
+import { formatRupiah } from "@/lib/format-rupiah";
+import { MIN_WITHDRAWAL_AMOUNT } from "@/lib/constants/withdrawal";
 
 const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 sm:text-sm";

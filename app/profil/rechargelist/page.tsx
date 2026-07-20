@@ -4,6 +4,7 @@ import { desc, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { deposits } from "@/lib/db/schema";
+import { formatRupiah } from "@/lib/format-rupiah";
 import { createClient } from "@/lib/supabase/server";
 
 import { BottomNav } from "../../_components/bottom-nav";
@@ -19,11 +20,6 @@ const STATUS_CLASS: Record<string, string> = {
   approved: "bg-emerald-100 text-emerald-700",
   rejected: "bg-rose-100 text-rose-700",
 };
-
-function formatRupiah(value: string | number) {
-  const num = typeof value === "string" ? Number(value) : value;
-  return "Rp " + num.toLocaleString("id-ID");
-}
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("id-ID", {

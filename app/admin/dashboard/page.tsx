@@ -2,12 +2,9 @@ import { DashboardDateRange } from "./_components/dashboard-date-range";
 import { PeriodCard } from "./_components/period-card";
 import { StatCard } from "./_components/stat-card";
 import { getDashboardStats, parseDateRange } from "@/lib/dashboard";
+import { formatRupiah } from "@/lib/format-rupiah";
 import { getScope } from "@/lib/access";
 import { createClient } from "@/lib/supabase/server";
-
-function formatRupiah(value: number): string {
-  return `Rp ${value.toLocaleString("id-ID")}`;
-}
 
 type SearchParams = Promise<{ from?: string; to?: string }>;
 

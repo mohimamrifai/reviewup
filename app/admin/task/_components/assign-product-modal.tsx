@@ -5,9 +5,9 @@ import { useActionState, useEffect, useMemo, useRef, useState, useTransition } f
 import { Check, ChevronDown, Loader2, Search, X } from "lucide-react";
 
 import { assignProduct } from "@/lib/actions/tasks-admin";
+import { formatRupiah } from "@/lib/format-rupiah";
 
 import {
-  formatRupiah,
   initialAssignState,
   inputClass,
   useModalEscape,

@@ -26,7 +26,3 @@ export const WITHDRAWAL_AUTO_BAN_REASONS: readonly WithdrawalRejectionReason[] =
   "Rekening tidak valid",
   "Aktivitas mencurigakan",
 ];
-
-export function formatRupiah(amount: number): string {
-  return "Rp " + amount.toLocaleString("id-ID");
-}

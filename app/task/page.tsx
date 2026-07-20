@@ -2,6 +2,7 @@ import { eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { profiles, tasks } from "@/lib/db/schema";
+import { formatRupiah } from "@/lib/format-rupiah";
 import { LEVEL_LABEL, LEVEL_RATE_PERCENT } from "@/lib/levels";
 import { createClient } from "@/lib/supabase/server";
 
@@ -16,11 +17,6 @@ import { BottomNav } from "../_components/bottom-nav";
 // Halaman menampilkan saldo (utama + beku) yang sensitif terhadap perubahan
 // di server actions lain. Paksa dynamic agar tidak menampilkan nilai stale.
 export const dynamic = "force-dynamic";
-
-function formatRupiah(value: string | number) {
-  const num = typeof value === "string" ? Number(value) : value;
-  return "Rp " + num.toLocaleString("id-ID");
-}
 
 export default async function TaskPage() {
   const supabase = await createClient();

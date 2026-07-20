@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { ArrowLeft, UserCog } from "lucide-react";
 
 import type { StaffDetailStats } from "@/lib/team";
+import { formatRupiah } from "@/lib/format-rupiah";
 
 type Staff = {
   id: string;
@@ -17,11 +18,6 @@ type Staff = {
 
 const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm";
-
-function formatRupiah(value: string | number): string {
-  const num = typeof value === "string" ? Number(value) : value;
-  return "Rp " + num.toLocaleString("id-ID");
-}
 
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("id-ID", {

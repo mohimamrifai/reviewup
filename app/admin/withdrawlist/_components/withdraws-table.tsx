@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
-import formatRupiah from "@/lib/format-rupiah";
+import { formatRupiah } from "@/lib/format-rupiah";
 import Row from "./row";
 
 export const STATUS_OPTIONS = [
