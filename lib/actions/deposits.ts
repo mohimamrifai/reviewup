@@ -1,11 +1,10 @@
 "use server";
 
-import { eq } from "drizzle-orm";
 import { revalidatePath, refresh } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
-import { auditLogs, deposits, profiles } from "@/lib/db/schema";
+import { auditLogs, deposits } from "@/lib/db/schema";
 import { attachUploadedFileToDeposit, isAllowedImageMime, saveUploadedFile } from "@/lib/storage/local-storage";
 import { getCurrentUser } from "@/lib/auth/session";
 
@@ -30,16 +29,6 @@ export async function submitDeposit(
 ): Promise<DepositState> {
   const user = await getCurrentUser();
   if (!user) return { error: "Sesi habis, silakan login ulang." };
-
-  // Cek status akun: banned member tidak boleh deposit
-  const [me] = await db
-    .select({ status: profiles.status })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-  if (me?.status === "banned") {
-    return { error: "Akun Anda diblokir. Hubungi staff terkait untuk konfirmasi." };
-  }
 
   // Parse amount
   const amountStr = String(formData.get("amount") ?? "").replace(/[^\d]/g, "");

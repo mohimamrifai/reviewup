@@ -30,6 +30,8 @@ export function AssignProductModal({
   const [pending, startTransition] = useTransition();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [query, setQuery] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -42,12 +44,19 @@ export function AssignProductModal({
     [activeProducts, selectedId],
   );
 
-  // Filter berdasar query (case-insensitive substring match di nama).
+  // Filter berdasar query + range harga (semua opsional).
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return activeProducts;
-    return activeProducts.filter((p) => p.name.toLowerCase().includes(q));
-  }, [activeProducts, query]);
+    const min = minPrice ? Number(minPrice) : null;
+    const max = maxPrice ? Number(maxPrice) : null;
+    return activeProducts.filter((p) => {
+      if (q && !p.name.toLowerCase().includes(q)) return false;
+      const price = Number(p.price);
+      if (min !== null && price < min) return false;
+      if (max !== null && price > max) return false;
+      return true;
+    });
+  }, [activeProducts, query, minPrice, maxPrice]);
 
   // Tutup dropdown saat klik di luar wrapper.
   useEffect(() => {
@@ -247,6 +256,37 @@ export function AssignProductModal({
                   Pilih produk dari daftar.
                 </p>
               )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs">
+                  Min. Harga
+                </span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  placeholder="0"
+                  value={minPrice}
+                  onChange={(e) => setMinPrice(e.target.value.replace(/[^\d]/g, ""))}
+                  className={inputClass}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[11px] font-medium text-zinc-700 sm:text-xs">
+                  Maks. Harga
+                </span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  placeholder="∞"
+                  value={maxPrice}
+                  onChange={(e) => setMaxPrice(e.target.value.replace(/[^\d]/g, ""))}
+                  className={inputClass}
+                />
+              </label>
             </div>
 
             {state.error && (

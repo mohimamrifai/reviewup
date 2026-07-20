@@ -59,16 +59,33 @@ async function processImageUpload(
     return { ok: false, error: "Format harus JPG, PNG, atau WEBP." };
   }
 
-  const saved = await saveUploadedFile({
-    file,
-    category: "products",
-    visibility: "public",
-  });
+  try {
+    const saved = await saveUploadedFile({
+      file,
+      category: "products",
+      visibility: "public",
+    });
 
-  // Cleanup best-effort: hapus file lama kalau ada
-  await deleteUploadedFileByUrl(oldPath);
+    // Cleanup best-effort: hapus file lama kalau ada
+    await deleteUploadedFileByUrl(oldPath);
 
-  return { ok: true, publicUrl: saved.url, path: saved.id };
+    return { ok: true, publicUrl: saved.url, path: saved.id };
+  } catch (err) {
+    console.error(
+      "[products] upload image gagal:",
+      err instanceof Error ? err.message : err,
+    );
+    if (err && typeof err === "object" && "cause" in err) {
+      console.error("[products] cause:", (err as { cause?: unknown }).cause);
+    }
+    if (err && typeof err === "object" && "code" in err) {
+      console.error("[products] db code:", (err as { code?: unknown }).code);
+    }
+    return {
+      ok: false,
+      error: "Upload gambar gagal diproses. Coba ulangi beberapa saat lagi.",
+    };
+  }
 }
 
 export async function createProduct(

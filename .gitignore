@@ -44,3 +44,5 @@ next-env.d.ts
 docs/*
 .tasks.md
 tests
+
+src/uploaded/*

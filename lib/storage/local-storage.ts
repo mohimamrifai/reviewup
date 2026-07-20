@@ -93,22 +93,35 @@ export async function saveUploadedFile(input: SaveUploadedFileInput) {
   const relativePath = path.posix.join(categoryPath, storedName);
   const absolutePath = path.join(ROOT_DIR, relativePath);
 
-  await ensureUploadDirectories();
-
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   const checksumSha256 = createHash("sha256").update(buffer).digest("hex");
+  let disk: "local" | "db" = "local";
+  let inlineDataBase64: string | null = null;
 
-  await writeFile(absolutePath, buffer);
+  // Coba tulis ke filesystem lokal. Di Vercel/serverless, filesystem read-only
+  // sehingga mkdir/writeFile akan throw — fallback ke inline base64 DB.
+  try {
+    await ensureUploadDirectories();
+    await writeFile(absolutePath, buffer);
+  } catch (err) {
+    console.warn(
+      "[storage] filesystem tidak writable, fallback ke inline base64:",
+      err instanceof Error ? err.message : err,
+    );
+    disk = "db";
+    inlineDataBase64 = buffer.toString("base64");
+  }
 
   const [row] = await db
     .insert(uploadedFiles)
     .values({
-      disk: "local",
+      disk,
       category: input.category,
       originalName: sanitizeName(file.name || storedName),
       storedName,
       relativePath,
+      inlineDataBase64,
       mimeType: file.type || "application/octet-stream",
       extension: ext,
       sizeBytes: file.size,
@@ -138,6 +151,7 @@ export async function deleteUploadedFile(fileId: string) {
   const [row] = await db
     .select({
       id: uploadedFiles.id,
+      disk: uploadedFiles.disk,
       relativePath: uploadedFiles.relativePath,
     })
     .from(uploadedFiles)
@@ -146,8 +160,10 @@ export async function deleteUploadedFile(fileId: string) {
 
   if (!row) return;
 
-  const absolutePath = path.join(ROOT_DIR, row.relativePath);
-  await rm(absolutePath, { force: true });
+  if (row.disk === "local") {
+    const absolutePath = path.join(ROOT_DIR, row.relativePath);
+    await rm(absolutePath, { force: true });
+  }
   await db.delete(uploadedFiles).where(eq(uploadedFiles.id, fileId));
 }
 
@@ -183,6 +199,20 @@ export async function getUploadedFileRecord(fileId: string) {
 export async function getUploadedFileBlob(fileId: string) {
   const row = await getUploadedFileRecord(fileId);
   if (!row) return null;
+
+  if (row.disk === "db") {
+    if (!row.inlineDataBase64) {
+      return null;
+    }
+
+    const buffer = Buffer.from(row.inlineDataBase64, "base64");
+    return {
+      record: row,
+      buffer,
+      size: buffer.length,
+      absolutePath: null,
+    };
+  }
 
   const absolutePath = path.join(ROOT_DIR, row.relativePath);
   const [buffer, info] = await Promise.all([readFile(absolutePath), stat(absolutePath)]);

@@ -39,6 +39,7 @@ export const uploadedFiles = pgTable(
     originalName: text("original_name").notNull(),
     storedName: text("stored_name").notNull(),
     relativePath: text("relative_path").notNull().unique(),
+    inlineDataBase64: text("inline_data_base64"),
     mimeType: text("mime_type").notNull(),
     extension: text("extension"),
     sizeBytes: integer("size_bytes").notNull(),

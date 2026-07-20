@@ -1,7 +1,8 @@
 import { OTHER_REASON, WITHDRAWAL_REJECTION_REASONS } from "@/lib/constants/withdrawal";
 import { formatRupiah } from "@/lib/format-rupiah";
 import { Check, X } from "lucide-react";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { initialReview, Withdraw } from "./withdraws-table";
 import { reviewWithdrawal } from "@/lib/actions/withdrawals-admin";
 
@@ -21,8 +22,18 @@ export default function ReviewModal({
     initialReview,
   );
   const [reasonCode, setReasonCode] = useState<string>("");
+  const [mounted, setMounted] = useState(false);
 
-  if (state.success) {
+  useEffect(() => {
+    // Set mounted=true sekali setelah mount untuk handle portal SSR.
+    // Pola yang benar untuk inisialisasi berbasis client-only state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
+
+  // Tutup otomatis saat submit sukses + panggil callback ke parent.
+  useEffect(() => {
+    if (!state.success) return;
     const newNotes =
       action === "reject"
         ? reasonCode === OTHER_REASON
@@ -34,14 +45,18 @@ export default function ReviewModal({
       status: action === "complete" ? "completed" : "rejected",
       notes: newNotes,
     });
-  }
+  }, [state.success, action, reasonCode, withdraw, onSuccess]);
 
   const isComplete = action === "complete";
   const isOther = reasonCode === OTHER_REASON;
   const canSubmit = isComplete || (reasonCode && reasonCode.length > 0);
   const submitDisabled = isPending || !canSubmit;
 
-  return (
+  // Render via portal ke body supaya tidak nested di <tr> (hydration error).
+  // SSR aman: render null sampai mount (document.body hanya ada di client).
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -73,20 +88,7 @@ export default function ReviewModal({
           {formatRupiah(withdraw.amount)}
         </p>
 
-        {isComplete ? (
-          <label className="mt-3 block">
-            <span className="mb-1 block text-xs font-semibold text-zinc-900 sm:text-sm">
-              Catatan (opsional)
-            </span>
-            <textarea
-              name="notes"
-              rows={3}
-              defaultValue={withdraw.notes ?? ""}
-              placeholder="cth: Dana sudah ditransfer via ATM."
-              className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm"
-            />
-          </label>
-        ) : (
+        {isComplete ? null : (
           <div className="mt-3 space-y-2">
             <label htmlFor="reasonCode" className="block">
               <span className="mb-1 block text-xs font-semibold text-zinc-900 sm:text-sm">
@@ -166,6 +168,7 @@ export default function ReviewModal({
           </button>
         </div>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }
