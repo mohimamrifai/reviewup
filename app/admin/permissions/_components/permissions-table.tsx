@@ -172,7 +172,6 @@ function countActive(o: AccessOverrides): number {
 }
 
 export function PermissionsTable({ initialAdmins }: { initialAdmins: Admin[] }) {
-  const [admins, setAdmins] = useState<Admin[]>(initialAdmins);
   const [editing, setEditing] = useState<Admin | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -189,14 +188,14 @@ export function PermissionsTable({ initialAdmins }: { initialAdmins: Admin[] }) 
             </tr>
           </thead>
           <tbody>
-            {admins.length === 0 ? (
+            {initialAdmins.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-3 py-6 text-center text-xs text-zinc-500 sm:text-sm">
                   Belum ada admin selain Anda.
                 </td>
               </tr>
             ) : (
-              admins.map((a) => {
+              initialAdmins.map((a) => {
                 const active = countActive(a.overrides);
                 return (
                   <tr
@@ -256,12 +255,7 @@ export function PermissionsTable({ initialAdmins }: { initialAdmins: Admin[] }) 
         <EditPermissionsModal
           admin={editing}
           onClose={() => setEditing(null)}
-          onSaved={(msg, newOverrides) => {
-            setAdmins((cur) =>
-              cur.map((a) =>
-                a.id === editing.id ? { ...a, overrides: newOverrides } : a,
-              ),
-            );
+          onSaved={(msg) => {
             setEditing(null);
             setToast({ type: "success", text: msg });
           }}

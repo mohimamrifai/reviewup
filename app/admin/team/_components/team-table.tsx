@@ -70,7 +70,6 @@ export function TeamTable({
   /** Username leader yang sedang login, default value saat leader klaim orphan. */
   currentLeaderUsername: string;
 }) {
-  const [admins, setAdmins] = useState<Admin[]>(initialAdmins);
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | "admin_leader" | "admin_staff">("all");
   const [creating, setCreating] = useState(false);
@@ -90,7 +89,7 @@ export function TeamTable({
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    return admins.filter((a) => {
+    return initialAdmins.filter((a) => {
       if (roleFilter !== "all" && a.role !== roleFilter) return false;
       if (!q) return true;
       return (
@@ -99,7 +98,7 @@ export function TeamTable({
         (a.leaderUsername?.toLowerCase().includes(q) ?? false)
       );
     });
-  }, [admins, query, roleFilter]);
+  }, [initialAdmins, query, roleFilter]);
 
   return (
     <div className="space-y-3">
@@ -125,7 +124,7 @@ export function TeamTable({
             <option value="admin_staff">Admin Staff</option>
           </select>
           <span className="text-xs text-zinc-500 sm:ml-auto sm:text-sm">
-            {filtered.length} dari {admins.length} admin
+            {filtered.length} dari {initialAdmins.length} admin
           </span>
           {currentLeaderId && (
             <button
@@ -163,7 +162,7 @@ export function TeamTable({
                   colSpan={currentLeaderId ? 8 : 7}
                   className="px-3 py-6 text-center text-xs text-zinc-500 sm:text-sm"
                 >
-                  {admins.length === 0
+                  {initialAdmins.length === 0
                     ? "Belum ada admin selain Anda."
                     : "Tidak ada admin yang cocok."}
                 </td>
@@ -277,7 +276,6 @@ export function TeamTable({
             setCreating(false);
             if (justCreated) {
               setJustCreated(false);
-              window.location.reload();
             }
           }}
           onCreated={(result) => {
@@ -300,7 +298,6 @@ export function TeamTable({
           onSaved={(msg) => {
             setEditing(null);
             setToast({ type: "success", text: msg });
-            window.location.reload();
           }}
           onResetPassword={(a) => {
             setEditing(null);
@@ -325,7 +322,6 @@ export function TeamTable({
           onClose={() => setDeleting(null)}
           onDeleted={(msg) => {
             setDeleting(null);
-            setAdmins((cur) => cur.filter((a) => a.id !== deleting.id));
             setToast({ type: "success", text: msg });
           }}
         />
@@ -342,7 +338,6 @@ export function TeamTable({
           onSaved={(msg) => {
             setSettingLeader(null);
             setToast({ type: "success", text: msg });
-            window.location.reload();
           }}
         />
       )}

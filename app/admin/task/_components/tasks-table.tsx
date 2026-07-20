@@ -240,8 +240,6 @@ export function TasksTable({
           onCreated={(msg) => {
             setCreating(false);
             setToast({ type: "success", text: msg });
-            // Refresh page untuk ambil data tugas baru
-            window.location.reload();
           }}
         />
       )}
@@ -254,7 +252,6 @@ export function TasksTable({
           onAssigned={(msg: string) => {
             setAssigning(null);
             setToast({ type: "success", text: msg });
-            window.location.reload();
           }}
         />
       )}
@@ -266,7 +263,6 @@ export function TasksTable({
           onConfirmed={(msg: string) => {
             setConfirming(null);
             setToast({ type: "success", text: msg });
-            window.location.reload();
           }}
         />
       )}

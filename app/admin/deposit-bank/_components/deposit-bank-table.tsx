@@ -46,7 +46,6 @@ export function useModalLifecycle(onClose: () => void) {
 }
 
 export function DepositBankTable({ initialAccounts }: { initialAccounts: Account[] }) {
-  const [accounts, setAccounts] = useState<Account[]>(initialAccounts);
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
@@ -55,14 +54,14 @@ export function DepositBankTable({ initialAccounts }: { initialAccounts: Account
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    if (!q) return accounts;
-    return accounts.filter(
+    if (!q) return initialAccounts;
+    return initialAccounts.filter(
       (a) =>
         a.bankName.toLowerCase().includes(q) ||
         a.accountName.toLowerCase().includes(q) ||
         a.accountNumber.includes(q),
     );
-  }, [accounts, query]);
+  }, [initialAccounts, query]);
 
   return (
     <div className="space-y-3">
@@ -79,7 +78,7 @@ export function DepositBankTable({ initialAccounts }: { initialAccounts: Account
             />
           </div>
           <span className="text-xs text-zinc-500 sm:ml-auto sm:text-sm">
-            {filtered.length} dari {accounts.length} rekening
+            {filtered.length} dari {initialAccounts.length} rekening
           </span>
           <button
             type="button"
@@ -111,7 +110,7 @@ export function DepositBankTable({ initialAccounts }: { initialAccounts: Account
                   colSpan={6}
                   className="px-3 py-6 text-center text-xs text-zinc-500 sm:text-sm"
                 >
-                  {accounts.length === 0
+                  {initialAccounts.length === 0
                     ? "Belum ada rekening tujuan. Tambahkan rekening untuk ditampilkan ke member."
                     : "Tidak ada rekening yang cocok."}
                 </td>
@@ -171,7 +170,6 @@ export function DepositBankTable({ initialAccounts }: { initialAccounts: Account
           onSaved={(msg) => {
             setCreating(false);
             setToast({ type: "success", text: msg });
-            window.location.reload();
           }}
         />
       )}
@@ -183,7 +181,6 @@ export function DepositBankTable({ initialAccounts }: { initialAccounts: Account
           onSaved={(msg) => {
             setEditing(null);
             setToast({ type: "success", text: msg });
-            window.location.reload();
           }}
         />
       )}
@@ -194,7 +191,6 @@ export function DepositBankTable({ initialAccounts }: { initialAccounts: Account
           onClose={() => setDeleting(null)}
           onDeleted={(msg) => {
             setDeleting(null);
-            setAccounts((cur) => cur.filter((a) => a.id !== deleting.id));
             setToast({ type: "success", text: msg });
           }}
         />

@@ -20,7 +20,6 @@ export function CommissionTable({
   initialRows: Row[];
   isCurrentSuperAdmin: boolean;
 }) {
-  const [rows, setRows] = useState<Row[]>(initialRows);
   const [editing, setEditing] = useState<Row | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -40,7 +39,7 @@ export function CommissionTable({
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
+            {initialRows.length === 0 ? (
               <tr>
                 <td
                   colSpan={isCurrentSuperAdmin ? 7 : 6}
@@ -50,7 +49,7 @@ export function CommissionTable({
                 </td>
               </tr>
             ) : (
-              rows.map((r) => (
+              initialRows.map((r) => (
                 <tr
                   key={r.staffId}
                   className="border-t border-zinc-200 transition hover:bg-zinc-50/60"
@@ -110,12 +109,7 @@ export function CommissionTable({
         <EditRateModal
           row={editing}
           onClose={() => setEditing(null)}
-          onSaved={(msg, newRate) => {
-            setRows((cur) =>
-              cur.map((r) =>
-                r.staffId === editing.staffId ? { ...r, commissionRate: newRate } : r,
-              ),
-            );
+          onSaved={(msg) => {
             setEditing(null);
             setToast({ type: "success", text: msg });
           }}

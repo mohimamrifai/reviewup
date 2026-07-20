@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { assertCanAccessMember, getScope } from "@/lib/access";
 import { db } from "@/lib/db";
-import { deposits, profiles } from "@/lib/db/schema";
+import { auditLogs, deposits, profiles } from "@/lib/db/schema";
 import { getCurrentUser } from "@/lib/auth/session";
 
 const actionSchema = z.object({
@@ -115,6 +115,17 @@ export async function reviewDeposit(
     if (!updated.length) {
       return { error: "Deposit tidak ditemukan atau sudah diproses." };
     }
+
+    await db.insert(auditLogs).values({
+      actorId: adminId,
+      targetId: depositRow.memberId,
+      action: "deposit_approved",
+      note: `Deposit #${parsed.data.id} disetujui.`,
+      metadata: JSON.stringify({
+        depositId: parsed.data.id,
+        notes: parsed.data.notes ?? null,
+      }),
+    });
   } else {
     // Reject
     const updated = await db
@@ -130,6 +141,17 @@ export async function reviewDeposit(
     if (!updated.length) {
       return { error: "Deposit tidak ditemukan." };
     }
+
+    await db.insert(auditLogs).values({
+      actorId: adminId,
+      targetId: depositRow.memberId,
+      action: "deposit_rejected",
+      note: `Deposit #${parsed.data.id} ditolak.`,
+      metadata: JSON.stringify({
+        depositId: parsed.data.id,
+        notes: parsed.data.notes ?? null,
+      }),
+    });
   }
 
   revalidatePath("/admin/rechargelist");

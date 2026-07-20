@@ -5,7 +5,7 @@ import { revalidatePath, refresh } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
-import { deposits, profiles } from "@/lib/db/schema";
+import { auditLogs, deposits, profiles } from "@/lib/db/schema";
 import { attachUploadedFileToDeposit, isAllowedImageMime, saveUploadedFile } from "@/lib/storage/local-storage";
 import { getCurrentUser } from "@/lib/auth/session";
 
@@ -77,6 +77,18 @@ export async function submitDeposit(
   }).returning({ id: deposits.id });
 
   await attachUploadedFileToDeposit(saved.id, createdDeposit.id);
+
+  await db.insert(auditLogs).values({
+    actorId: user.id,
+    targetId: user.id,
+    action: "deposit_submitted",
+    amount: amount.toFixed(2),
+    note: `Pengajuan deposit #${createdDeposit.id} dibuat.`,
+    metadata: JSON.stringify({
+      depositId: createdDeposit.id,
+      amount,
+    }),
+  });
 
   revalidatePath("/recharge");
   revalidatePath("/profil");

@@ -11,6 +11,8 @@ yang harus kamu kerjakan :
 - optimasi dan optimalkan kecepatan website
 - saya ingin website ini benar benar realtime
 - masih banyak halaman, CRUD yang harus di refresh untuk melihat data terbaru atau data perubahan
+- ketika ada perubahan pada admin ( status dan lain sebagainya ) harusnya user juga langsung melihat data begitu juga sebaliknya
+- intinya supaya user tidak perlu melakukan refresh
 - feedback ke user kurang, tidak ada toast atau informasi ketika user melakukan sesuai
 - karena sepertinya notification juga tidak di implementasikan dan tidak realtime
 

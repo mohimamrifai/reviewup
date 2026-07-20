@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { type Scope, getScope } from "@/lib/access";
 import { db } from "@/lib/db";
-import { customerServiceChannels } from "@/lib/db/schema";
+import { auditLogs, customerServiceChannels } from "@/lib/db/schema";
 import { getCurrentUser } from "@/lib/auth/session";
 
 const channelSchema = z.object({
@@ -80,8 +80,9 @@ export async function createChannel(
   _prev: ChannelState,
   formData: FormData,
 ): Promise<ChannelState> {
+  let actorId: string;
   try {
-    await requireChannelManager();
+    ({ actorId } = await requireChannelManager());
   } catch (e) {
     return handleAuthError(e);
   }
@@ -117,6 +118,13 @@ export async function createChannel(
 
   revalidatePath("/admin/pelayanan");
   revalidatePath("/support");
+  await db.insert(auditLogs).values({
+    actorId,
+    targetId: null,
+    action: "channel_created",
+    note: `Channel ${row.label} ditambahkan.`,
+  });
+  refresh();
   return {
     saved: row
       ? { ...row, type: row.type as "whatsapp" | "telegram" }
@@ -128,8 +136,9 @@ export async function updateChannel(
   _prev: ChannelState,
   formData: FormData,
 ): Promise<ChannelState> {
+  let actorId: string;
   try {
-    await requireChannelManager();
+    ({ actorId } = await requireChannelManager());
   } catch (e) {
     return handleAuthError(e);
   }
@@ -172,6 +181,13 @@ export async function updateChannel(
 
   revalidatePath("/admin/pelayanan");
   revalidatePath("/support");
+  await db.insert(auditLogs).values({
+    actorId,
+    targetId: null,
+    action: "channel_updated",
+    note: `Channel ${row.label} diperbarui.`,
+  });
+  refresh();
   return {
     saved: row
       ? { ...row, type: row.type as "whatsapp" | "telegram" }
@@ -183,8 +199,9 @@ export async function deleteChannel(
   _prev: ChannelState,
   formData: FormData,
 ): Promise<ChannelState> {
+  let actorId: string;
   try {
-    await requireChannelManager();
+    ({ actorId } = await requireChannelManager());
   } catch (e) {
     return handleAuthError(e);
   }
@@ -193,10 +210,22 @@ export async function deleteChannel(
   if (!Number.isInteger(id) || id <= 0) {
     return { error: "ID channel tidak valid." };
   }
+  const [row] = await db
+    .select({ label: customerServiceChannels.label })
+    .from(customerServiceChannels)
+    .where(eq(customerServiceChannels.id, id))
+    .limit(1);
   await db
     .delete(customerServiceChannels)
     .where(eq(customerServiceChannels.id, id));
   revalidatePath("/admin/pelayanan");
   revalidatePath("/support");
+  await db.insert(auditLogs).values({
+    actorId,
+    targetId: null,
+    action: "channel_deleted",
+    note: row ? `Channel ${row.label} dihapus.` : `Channel #${id} dihapus.`,
+  });
+  refresh();
   return {};
 }

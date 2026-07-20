@@ -36,19 +36,18 @@ const searchInputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm";
 
 export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
-  const [members, setMembers] = useState<Member[]>(initialMembers);
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Member | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    if (!q) return members;
-    return members.filter(
+    if (!q) return initialMembers;
+    return initialMembers.filter(
       (m) =>
         m.username.toLowerCase().includes(q) ||
         (m.phone?.toLowerCase().includes(q) ?? false),
     );
-  }, [members, query]);
+  }, [initialMembers, query]);
 
   return (
     <div className="space-y-3">
@@ -64,7 +63,7 @@ export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
           />
         </div>
         <span className="text-xs text-zinc-500 sm:ml-auto sm:text-sm">
-          {filtered.length} dari {members.length} member
+          {filtered.length} dari {initialMembers.length} member
         </span>
       </div>
 
@@ -90,7 +89,7 @@ export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
                   colSpan={9}
                   className="px-3 py-6 text-center text-xs text-zinc-500 sm:text-sm"
                 >
-                  {members.length === 0
+                  {initialMembers.length === 0
                     ? "Belum ada member terdaftar."
                     : "Tidak ada member yang cocok."}
                 </td>
@@ -101,13 +100,7 @@ export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
                   key={m.id}
                   member={m}
                   onEdit={() => setEditing(m)}
-                  onStatusChange={(newStatus) => {
-                    setMembers((cur) =>
-                      cur.map((row) =>
-                        row.id === m.id ? { ...row, status: newStatus } : row,
-                      ),
-                    );
-                  }}
+                  onStatusChange={() => {}}
                 />
               ))
             )}
@@ -119,10 +112,7 @@ export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
         <EditMemberModal
           member={editing}
           onClose={() => setEditing(null)}
-          onSaved={(updated) => {
-            setMembers((cur) =>
-              cur.map((m) => (m.id === updated.id ? updated : m)),
-            );
+          onSaved={() => {
             setEditing(null);
           }}
         />
@@ -130,4 +120,3 @@ export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
     </div>
   );
 }
-

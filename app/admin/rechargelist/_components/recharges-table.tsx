@@ -66,18 +66,17 @@ export function RechargesTable({
 }: {
   initialRecharges: Recharge[];
 }) {
-  const [recharges, setRecharges] = useState<Recharge[]>(initialRecharges);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    return recharges.filter((r) => {
+    return initialRecharges.filter((r) => {
       if (statusFilter !== "all" && r.status !== statusFilter) return false;
       if (!q) return true;
       return r.memberUsername.toLowerCase().includes(q);
     });
-  }, [recharges, query, statusFilter]);
+  }, [initialRecharges, query, statusFilter]);
 
   const totalAmount = useMemo(() => {
     return filtered
@@ -138,7 +137,7 @@ export function RechargesTable({
                   colSpan={6}
                   className="px-3 py-6 text-center text-xs text-zinc-500 sm:text-sm"
                 >
-                  {recharges.length === 0
+                  {initialRecharges.length === 0
                     ? "Belum ada pengajuan deposit."
                     : "Tidak ada data yang cocok."}
                 </td>
@@ -148,11 +147,7 @@ export function RechargesTable({
                 <Row
                   key={r.id}
                   recharge={r}
-                  onUpdated={(updated) =>
-                    setRecharges((cur) =>
-                      cur.map((x) => (x.id === updated.id ? updated : x)),
-                    )
-                  }
+                  onUpdated={() => {}}
                 />
               ))
             )}
