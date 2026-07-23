@@ -236,6 +236,7 @@ export async function adjustMemberBalance(
 
   revalidatePath("/admin/users");
   revalidatePath("/profil");
+  revalidatePath("/withdraw");
   refresh();
   return { success: true, message: "Saldo anggota berhasil diperbarui." };
 }
@@ -403,9 +404,18 @@ export async function setMemberWithdrawLock(
   }
 
   const newStatus = parsed.data.lock ? "banned" : "online";
+  const newReason = parsed.data.lock
+    ? (parsed.data.reason && parsed.data.reason.length > 0
+      ? parsed.data.reason
+      : null)
+    : null;
   const updated = await db
     .update(profiles)
-    .set({ status: newStatus, updatedAt: new Date() })
+    .set({
+      status: newStatus,
+      withdrawLockReason: newReason,
+      updatedAt: new Date(),
+    })
     .where(eq(profiles.id, parsed.data.memberId))
     .returning({ id: profiles.id });
 
@@ -429,6 +439,7 @@ export async function setMemberWithdrawLock(
 
   revalidatePath("/admin/users");
   revalidatePath("/profil");
+  revalidatePath("/withdraw");
   refresh();
   return {
     success: true,

@@ -24,6 +24,8 @@ export default async function WithdrawPage() {
         username: profiles.username,
         balance: profiles.balance,
         frozenBalance: profiles.frozenBalance,
+        status: profiles.status,
+        withdrawLockReason: profiles.withdrawLockReason,
       })
       .from(profiles)
       .where(eq(profiles.id, user.id))
@@ -45,6 +47,12 @@ export default async function WithdrawPage() {
       ),
   ]);
 
+  const isWithdrawLocked = profile?.status === "banned";
+  const lockReason =
+    isWithdrawLocked && profile?.withdrawLockReason
+      ? profile.withdrawLockReason
+      : null;
+
   return (
     <div className="min-h-full bg-zinc-50 pb-24">
       <header className="sticky top-0 z-30 bg-emerald-600 text-white shadow-sm">
@@ -59,6 +67,8 @@ export default async function WithdrawPage() {
           balance={profile?.balance ?? "0"}
           frozenBalance={profile?.frozenBalance ?? "0"}
           banks={banks}
+          isWithdrawLocked={isWithdrawLocked}
+          withdrawLockReason={lockReason}
         />
       </div>
 

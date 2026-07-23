@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Landmark, Lock, ShieldCheck } from "lucide-react";
+import { AlertOctagon, Landmark, Lock, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -31,6 +31,8 @@ type Props = {
   balance: string;
   frozenBalance: string;
   banks: Bank[];
+  isWithdrawLocked: boolean;
+  withdrawLockReason: string | null;
 };
 
 export function WithdrawContent({
@@ -38,6 +40,8 @@ export function WithdrawContent({
   balance,
   frozenBalance,
   banks,
+  isWithdrawLocked,
+  withdrawLockReason,
 }: Props) {
   const [state, formAction, isPending] = useActionState(
     submitWithdrawal,
@@ -52,6 +56,7 @@ export function WithdrawContent({
 
   const balanceNum = Number(balance);
   const balanceBelowMinimum = balanceNum < MIN_WITHDRAWAL_AMOUNT;
+  const formDisabled = isWithdrawLocked || balanceBelowMinimum;
 
   if (state.success) {
     return (
@@ -119,6 +124,35 @@ export function WithdrawContent({
           </p>
         )}
       </div>
+
+      {isWithdrawLocked && (
+        <div className="flex items-start gap-2.5 rounded-2xl bg-rose-50 px-4 py-3 ring-1 ring-rose-200/70 sm:gap-3 sm:px-5 sm:py-4">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600 sm:size-9">
+            <AlertOctagon className="size-4 sm:size-5" strokeWidth={1.8} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold text-rose-700 sm:text-sm">
+              Penarikan Anda Saat Ini Diblokir
+            </p>
+            {withdrawLockReason ? (
+              <div className="mt-1 space-y-0.5 text-[11px] text-rose-900/90 sm:text-xs">
+                <p className="font-semibold text-rose-700">Alasan:</p>
+                <p className="whitespace-pre-line text-rose-900">
+                  {withdrawLockReason}
+                </p>
+              </div>
+            ) : (
+              <p className="mt-1 text-[11px] text-rose-900/90 sm:text-xs">
+                Akun Anda diblokir. Hubungi staff terkait untuk konfirmasi.
+              </p>
+            )}
+            <p className="mt-1.5 text-[10px] text-rose-700/80 sm:text-[11px]">
+              Form penarikan di bawah dinonaktifkan selama penarikan masih
+              diblokir.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-200/60">
         <div className="border-l-4 border-l-emerald-500 px-4 py-2.5 sm:px-5 sm:py-3">
@@ -244,7 +278,7 @@ export function WithdrawContent({
 
             <button
               type="submit"
-              disabled={isPending || balanceBelowMinimum}
+              disabled={isPending || formDisabled}
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 active:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:py-3 sm:text-sm"
             >
               <ShieldCheck className="size-4" />

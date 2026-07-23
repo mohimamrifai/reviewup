@@ -66,6 +66,11 @@ export const profiles = pgTable(
      */
     accessOverrides: jsonb("access_overrides").notNull().default({}),
     status: userStatus("status").notNull().default("online"),
+    /**
+     * Alasan pemblokiran penarikan yang diinput admin. NULL ketika penarikan
+     * tidak diblokir (atau diblokir tanpa alasan).
+     */
+    withdrawLockReason: text("withdraw_lock_reason"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .default(sql`now()`),

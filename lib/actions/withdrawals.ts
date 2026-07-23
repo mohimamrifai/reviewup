@@ -67,12 +67,20 @@ export async function submitWithdrawal(
 
   // Cek status akun: banned member tidak boleh withdraw
   const [me] = await db
-    .select({ status: profiles.status })
+    .select({
+      status: profiles.status,
+      withdrawLockReason: profiles.withdrawLockReason,
+    })
     .from(profiles)
     .where(eq(profiles.id, user.id))
     .limit(1);
   if (me?.status === "banned") {
-    return { error: "Akun Anda diblokir. Hubungi staff terkait untuk konfirmasi." };
+    const reason = me.withdrawLockReason?.trim();
+    return {
+      error: reason
+        ? `Penarikan Anda sedang diblokir. Alasan: ${reason}. Hubungi staff terkait untuk konfirmasi.`
+        : "Akun Anda diblokir. Hubungi staff terkait untuk konfirmasi.",
+    };
   }
 
   // Verifikasi sandi penarikan via DB (bcrypt crypt).
