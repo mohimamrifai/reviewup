@@ -64,6 +64,7 @@ const SEED_USERS = [
     username: "rinasyah",
     password: "jika123",
     role: "member",
+    balance: "30000",
     referrerUsername: "adminstaff",
     withdrawPassword: "123456",
   },
@@ -228,8 +229,38 @@ async function ensureUser(spec) {
   return userId;
 }
 
+// Daftar tabel yang di-reset setiap kali seed dijalankan. Urutan tidak
+// penting karena `TRUNCATE ... CASCADE` menghapus dependensi FK secara
+// otomatis. Tambahkan tabel baru di sini bila schema bertambah.
+const RESET_TABLES = [
+  "user",
+  "session",
+  "account",
+  "verification",
+  "profiles",
+  "products",
+  "uploaded_files",
+  "task_requests",
+  "tasks",
+  "deposits",
+  "withdrawals",
+  "bank_accounts",
+  "channels",
+  "audit_logs",
+  "deposit_bank_accounts",
+  "commission_settings",
+];
+
+async function resetDatabase() {
+  const tableList = RESET_TABLES.map((t) => `"${t}"`).join(", ");
+  await sql.unsafe(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE`);
+  console.log(`[seed] reset ${RESET_TABLES.length} tabel (TRUNCATE CASCADE)`);
+}
+
 try {
   console.log("[seed] mulai...");
+
+  await resetDatabase();
 
   // Hash sandi penarikan dilakukan di Node (bcryptjs) — tidak butuh extension
   // pgcrypto atau Supabase-specific schema. Aman untuk PostgreSQL standar.
