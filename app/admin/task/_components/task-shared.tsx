@@ -28,6 +28,12 @@ export type Task = {
   commission: string;
   status: string;
   createdAt: string;
+  /**
+   * Nomor urut kronologis baris ini di histori member
+   * (gabungan task + request, diurutkan ASC berdasarkan `createdAt`).
+   * 1 = baris paling lama milik member tsb.
+   */
+  ke: number;
 };
 
 export type MemberOption = {

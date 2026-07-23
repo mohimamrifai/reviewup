@@ -123,6 +123,7 @@ export function TasksTable({
               <th className={headerCellClass}>Komisi</th>
               <th className={headerCellClass}>Status</th>
               <th className={headerCellClass}>Saldo</th>
+              <th className={headerCellClass}>Ke</th>
               <th className={aksiHeaderClass}>Aksi</th>
             </tr>
           </thead>
@@ -130,7 +131,7 @@ export function TasksTable({
             {paginated.length === 0 ? (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   className="px-3 py-6 text-center text-xs text-zinc-500 sm:text-sm"
                 >
                   {tasks.length === 0
@@ -169,6 +170,9 @@ export function TasksTable({
                   </td>
                   <td className={cellClass}>
                     {formatRupiah(t.memberBalance)}
+                  </td>
+                  <td className={`${cellClass} text-center font-semibold text-indigo-700`}>
+                    {t.ke}
                   </td>
                   <td className={aksiCellClass}>
                     <div className="flex flex-col items-stretch gap-1.5 sm:flex-row sm:items-center sm:justify-end">

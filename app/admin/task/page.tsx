@@ -122,9 +122,31 @@ export default async function AdminTaskPage() {
       : baseRequestQuery.orderBy(desc(taskRequests.requestedAt)),
   ]);
 
-  const rows = [...requestRows, ...taskRows].sort(
-    (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
-  );
+  const allRows = [...requestRows, ...taskRows];
+
+  // Hitung nomor urut kronologis per member (gabungan task + request).
+  // 1 = baris paling lama milik member tsb. Pengurutan ASC agar counter naik
+  // sesuai urutan waktu dibuat; tie-breaker id agar deterministik.
+  const keByRowKey = new Map<string, number>();
+  {
+    const sortedAsc = [...allRows].sort((a, b) => {
+      const dt = a.createdAt.getTime() - b.createdAt.getTime();
+      if (dt !== 0) return dt;
+      return a.kind === b.kind
+        ? a.id - b.id
+        : a.kind.localeCompare(b.kind);
+    });
+    const counters = new Map<string, number>();
+    for (const r of sortedAsc) {
+      const next = (counters.get(r.memberId) ?? 0) + 1;
+      counters.set(r.memberId, next);
+      keByRowKey.set(`${r.kind}-${r.id}`, next);
+    }
+  }
+
+  const rows = allRows
+    .map((r) => ({ ...r, ke: keByRowKey.get(`${r.kind}-${r.id}`) ?? 0 }))
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:space-y-5 sm:py-5">
@@ -142,6 +164,7 @@ export default async function AdminTaskPage() {
           queue: r.queue,
           createdAt: r.createdAt.toISOString(),
           productId: r.productId,
+          ke: r.ke,
         }))}
         members={memberRows.map((m) => ({
           id: m.id,
