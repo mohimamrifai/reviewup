@@ -33,3 +33,48 @@ export function formatRupiah(
 
   return `Rp ${num.toLocaleString("id-ID")}`;
 }
+
+/**
+ * Format angka dengan pemisah ribuan (titik) tanpa prefix "Rp".
+ *
+ * Berguna untuk menampilkan nilai numerik di dalam <input> yang menerima
+ * digit-only (mis. filter min/max harga), di mana kita ingin user melihat
+ * "50.000" bukan "Rp 50.000".
+ *
+ * @example
+ *   formatThousands(50000)      // "50.000"
+ *   formatThousands("50000")    // "50.000"
+ *   formatThousands("")         // ""
+ *   formatThousands(null)       // ""
+ *   formatThousands(NaN)        // ""
+ *
+ * @param value - Nilai yang akan diformat
+ * @returns String berformat "XX.XXX" atau string kosong untuk input kosong/non-finite
+ */
+export function formatThousands(
+  value: number | string | null | undefined,
+): string {
+  if (value === null || value === undefined || value === "") return "";
+
+  const num = typeof value === "string" ? Number(value) : value;
+  if (!Number.isFinite(num)) return "";
+
+  return num.toLocaleString("id-ID");
+}
+
+/**
+ * Parse string menjadi digit-only. Memungkinkan user menempel string apapun
+ * (mis. "Rp 50.000", "50,000", " 50k ") dan kita tetap dapat angka bersih.
+ *
+ * @example
+ *   parseThousands("50.000")    // "50000"
+ *   parseThousands("Rp 50.000") // "50000"
+ *   parseThousands("50,000")    // "50000"
+ *   parseThousands("")          // ""
+ *
+ * @param value - String input dari user
+ * @returns String berisi hanya karakter digit
+ */
+export function parseThousands(value: string): string {
+  return value.replace(/\D/g, "");
+}

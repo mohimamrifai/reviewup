@@ -6,6 +6,7 @@ import {
 
 import { db } from "@/lib/db";
 import { products as productsTable } from "@/lib/db/schema";
+import { getCurrentUser } from "@/lib/auth/session";
 import fallbackProducts from "./_components/fallback-data";
 
 import { BottomNav } from "./_components/bottom-nav";
@@ -13,8 +14,6 @@ import { PartnerStrip } from "./_components/partner-strip";
 import { ProductCard } from "./_components/product-card";
 import { PromoMarquee } from "./_components/promo-marquee";
 import { TopBar } from "./_components/top-bar";
-
-import { formatRupiah } from "@/lib/format-rupiah";
 
 export default async function HomePage() {
   // Tarik produk aktif dari database (maks 8 agar jumlah card konsisten).
@@ -44,6 +43,10 @@ export default async function HomePage() {
 
   const useFallback = dbProducts.length === 0;
 
+  // Tombol "Promosikan" mengarah ke /task untuk user login, /register untuk tamu.
+  const user = await getCurrentUser();
+  const promoteHref = user ? "/task" : "/register";
+
   return (
     <div className="min-h-full bg-zinc-50 pb-28">
       <TopBar />
@@ -64,12 +67,11 @@ export default async function HomePage() {
 
         <div className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-5 sm:gap-3">
           {useFallback
-            ? fallbackProducts.map(({ id, title, price, icon: Icon }) => (
+            ? fallbackProducts.map(({ id, title, icon: Icon }) => (
                 <ProductCard
                   key={id}
                   title={title}
-                  price={price}
-                  href="#"
+                  href={promoteHref}
                   imageSlot={
                     <Icon
                       className="size-10 text-zinc-300 sm:size-14"
@@ -82,8 +84,7 @@ export default async function HomePage() {
                 <ProductCard
                   key={p.id}
                   title={p.name}
-                  price={formatRupiah(p.price)}
-                  href="#"
+                  href={promoteHref}
                   imageSlot={
                     p.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element

@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Plus, Search } from "lucide-react";
 
 import { StatusBadge, type Status } from "./status-badge";
-import { AssignProductModal } from "./assign-product-modal";
 import { ConfirmTaskModal } from "./confirm-task-modal";
 import { CreateTaskModal } from "./create-task-modal";
 import { TaskStatusModal } from "./task-status-modal";
@@ -39,7 +39,6 @@ export function TasksTable({
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<Task | null>(null);
   const [creating, setCreating] = useState(false);
-  const [assigning, setAssigning] = useState<Task | null>(null);
   const [confirming, setConfirming] = useState<Task | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -177,13 +176,12 @@ export function TasksTable({
                   <td className={aksiCellClass}>
                     <div className="flex flex-col items-stretch gap-1.5 sm:flex-row sm:items-center sm:justify-end">
                       {t.kind === "request" ? (
-                        <button
-                          type="button"
-                          onClick={() => setAssigning(t)}
-                          className="rounded-md bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 transition hover:bg-amber-200 sm:text-sm"
+                        <Link
+                          href={`/admin/task/${t.id}/assign`}
+                          className="rounded-md bg-amber-100 px-3 py-1 text-center text-xs font-semibold text-amber-800 transition hover:bg-amber-200 sm:text-sm"
                         >
                           Pilih
-                        </button>
+                        </Link>
                       ) : null}
                       {t.kind === "task" && t.status === "dikerjakan" ? (
                         <button
@@ -240,18 +238,6 @@ export function TasksTable({
           onClose={() => setCreating(false)}
           onCreated={(msg) => {
             setCreating(false);
-            setToast({ type: "success", text: msg });
-          }}
-        />
-      )}
-
-      {assigning && (
-        <AssignProductModal
-          task={assigning}
-          products={products}
-          onClose={() => setAssigning(null)}
-          onAssigned={(msg: string) => {
-            setAssigning(null);
             setToast({ type: "success", text: msg });
           }}
         />

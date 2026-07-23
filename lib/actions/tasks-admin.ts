@@ -2,6 +2,7 @@
 
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath, refresh } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { assertCanAccessMember, getScope } from "@/lib/access";
@@ -626,9 +627,5 @@ export async function assignProduct(
   revalidatePath("/order");
   revalidatePath("/task");
   refresh();
-  return {
-    success: true,
-    message: `Produk berhasil dipilih untuk request #${parsed.data.taskId}.`,
-    taskId: createdTask.id,
-  };
+  redirect("/admin/task");
 }

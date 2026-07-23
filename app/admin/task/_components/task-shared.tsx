@@ -1,14 +1,11 @@
 /**
  * Tipe data, konstanta, style, dan utilitas yang dipakai bersama
- * oleh TasksTable + 3 modal (TaskStatusModal, CreateTaskModal, AssignProductModal).
+ * oleh TasksTable + 3 modal (TaskStatusModal, CreateTaskModal, ConfirmTaskModal).
  */
 
 import { useEffect } from "react";
 
-import type {
-  AssignProductState,
-  TaskReviewState,
-} from "@/lib/actions/tasks-admin";
+import type { TaskReviewState } from "@/lib/actions/tasks-admin";
 
 import type { Status } from "./status-badge";
 
@@ -108,7 +105,6 @@ export function formatDate(iso: string) {
 /** State awal untuk useActionState — identitas objek dijaga agar `===` aman
  *  terhadap React StrictMode (cek di effect modal). */
 export const initialReviewState: TaskReviewState = {};
-export const initialAssignState: AssignProductState = {};
 
 /** Pasang handler Escape + kunci scroll body saat modal terbuka. */
 export function useModalEscape(onClose: () => void) {
