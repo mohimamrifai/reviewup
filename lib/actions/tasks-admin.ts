@@ -304,17 +304,22 @@ export async function updateTaskStatus(
           GROUP BY member_id
         ),
         new_lvl AS (
+          -- Auto-upgrade only: turunkan HANYA jika level saat ini
+          -- (termasuk yang di-set admin) lebih rendah dari threshold baru.
+          -- Sistem TIDAK boleh menurunkan level yang sudah di-set admin
+          -- (mis. admin naikkan ke silver walau tugas selesai < 5).
           SELECT
             cnt.member_id,
             CASE
-              WHEN cnt.total_done >= 100 THEN 'premier'::user_level
-              WHEN cnt.total_done >= 50 THEN 'diamond'::user_level
-              WHEN cnt.total_done >= 30 THEN 'platinum'::user_level
-              WHEN cnt.total_done >= 15 THEN 'gold'::user_level
-              WHEN cnt.total_done >= 5 THEN 'silver'::user_level
-              ELSE 'classic'::user_level
+              WHEN cnt.total_done >= 100 AND m.level <> 'premier' THEN 'premier'::user_level
+              WHEN cnt.total_done >= 50  AND m.level NOT IN ('diamond', 'premier') THEN 'diamond'::user_level
+              WHEN cnt.total_done >= 30  AND m.level NOT IN ('platinum', 'diamond', 'premier') THEN 'platinum'::user_level
+              WHEN cnt.total_done >= 15  AND m.level NOT IN ('gold', 'platinum', 'diamond', 'premier') THEN 'gold'::user_level
+              WHEN cnt.total_done >= 5   AND m.level NOT IN ('silver', 'gold', 'platinum', 'diamond', 'premier') THEN 'silver'::user_level
+              ELSE m.level
             END AS lvl
           FROM cnt
+          CROSS JOIN m
         ),
         credit AS (
           UPDATE profiles
