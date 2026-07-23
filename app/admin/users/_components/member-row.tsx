@@ -1,9 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useTransition } from "react";
-import { Loader2, Lock, Pencil, Star, Unlock } from "lucide-react";
+import { Pencil, Star } from "lucide-react";
 
-import { setMemberWithdrawLock, type MemberToolState } from "@/lib/actions/member-tools";
 import { formatRupiah } from "@/lib/format-rupiah";
 
 import type { Member, MemberLevel } from "./members-table";
@@ -58,46 +56,10 @@ const aksiCellClass =
 export function MemberRow({
   member,
   onEdit,
-  onStatusChange,
 }: {
   member: Member;
   onEdit: () => void;
-  onStatusChange: (newStatus: string) => void;
 }) {
-  const [state, action] = useActionState<MemberToolState, FormData>(setMemberWithdrawLock, {});
-  const [pending, startTransition] = useTransition();
-  const isBanned = member.status === "banned";
-
-  // Tutup lock-toggle otomatis setelah sukses (next click aman)
-  useEffect(() => {
-    if (state.success) {
-      onStatusChange(isBanned ? "online" : "banned");
-    }
-  }, [state, isBanned, onStatusChange]);
-
-  function applyLock() {
-    const fd = new FormData();
-    fd.set("memberId", member.id);
-    fd.set("lock", isBanned ? "false" : "true");
-    // Saat blokir dari row ini tanpa alasan, default alasan singkat
-    if (!isBanned) fd.set("reason", "Blokir cepat dari tabel anggota.");
-    startTransition(() => action(fd));
-  }
-
-  function handleClick() {
-    if (isBanned) {
-      // Buka blokir: langsung proses
-      applyLock();
-    } else {
-      // Blokir: tampilkan konfirmasi dulu
-      const ok = window.confirm(
-        `Blokir penarikan untuk @${member.username}?\n\n` +
-          `Anggota tidak akan bisa melakukan penarikan saldo. ` +
-          `Tindakan akan dicatat di log audit.`,
-      );
-      if (ok) applyLock();
-    }
-  }
   return (
     <tr className="group border-t border-zinc-200 transition hover:bg-zinc-50/60">
       <td className={`${cellClass} font-medium text-zinc-900`}>
@@ -152,26 +114,6 @@ export function MemberRow({
         <div className="flex items-center justify-end gap-1.5">
           <button
             type="button"
-            aria-label={isBanned ? `Buka blokir ${member.username}` : `Blokir ${member.username}`}
-            onClick={handleClick}
-            disabled={pending}
-            className={`inline-flex items-center justify-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${
-              isBanned
-                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                : "bg-rose-100 text-rose-700 hover:bg-rose-200"
-            }`}
-          >
-            {pending ? (
-              <Loader2 className="size-3 animate-spin" />
-            ) : isBanned ? (
-              <Unlock className="size-3" />
-            ) : (
-              <Lock className="size-3" />
-            )}
-            {isBanned ? "Buka" : "Blokir"}
-          </button>
-          <button
-            type="button"
             aria-label={`Edit ${member.username}`}
             onClick={onEdit}
             className="inline-flex items-center justify-center gap-1 rounded-md bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-700 transition hover:bg-sky-200"
@@ -184,4 +126,3 @@ export function MemberRow({
     </tr>
   );
 }
-

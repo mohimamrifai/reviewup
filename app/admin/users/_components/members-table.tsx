@@ -100,7 +100,6 @@ export function MembersTable({ initialMembers }: { initialMembers: Member[] }) {
                   key={m.id}
                   member={m}
                   onEdit={() => setEditing(m)}
-                  onStatusChange={() => {}}
                 />
               ))
             )}
