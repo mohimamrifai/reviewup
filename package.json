@@ -15,6 +15,7 @@
     "db": "node scripts/db-seed.mjs"
   },
   "dependencies": {
+    "@better-auth/utils": "^0.4.2",
     "@hookform/resolvers": "^5.4.0",
     "bcryptjs": "^3.0.3",
     "better-auth": "^1.6.23",
