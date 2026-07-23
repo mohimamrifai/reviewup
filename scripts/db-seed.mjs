@@ -245,8 +245,8 @@ const RESET_TABLES = [
   "deposits",
   "withdrawals",
   "bank_accounts",
-  "channels",
   "audit_logs",
+  "customer_service_channels",
   "deposit_bank_accounts",
   "commission_settings",
 ];
