@@ -1,13 +1,6 @@
 import Image from "next/image";
-import { desc, eq } from "drizzle-orm";
-import {
-  Package,
-} from "lucide-react";
 
-import { db } from "@/lib/db";
-import { products as productsTable } from "@/lib/db/schema";
 import { getCurrentUser } from "@/lib/auth/session";
-import fallbackProducts from "./_components/fallback-data";
 
 import { BottomNav } from "./_components/bottom-nav";
 import { PartnerStrip } from "./_components/partner-strip";
@@ -15,34 +8,52 @@ import { ProductCard } from "./_components/product-card";
 import { PromoMarquee } from "./_components/promo-marquee";
 import { TopBar } from "./_components/top-bar";
 
+// Daftar produk statis untuk halaman promosi. Tidak bergantung pada database
+// agar halaman utama tetap stabil dan tidak terpengaruh perubahan stok di admin.
+const PROMOTED_PRODUCTS = [
+  {
+    id: 1,
+    name: "JAM TANGAN ALEXANDRE CHRISTIE AC 6141 COUPLE!! MURAH MERIAH GARANSI RESMI!!",
+    image: "/satu.jpg",
+  },
+  {
+    id: 2,
+    name: "SMILE ART Jumper Hoodie II SMILE ART Sweater Hoodie II Sweter Oblong Topi SIZE M - XL (Pria & Wanita / Anak & Dewasa)",
+    image: "/dua.webp",
+  },
+  {
+    id: 3,
+    name: "TZ-BAJU SWEATSHIRT PIRATE PANJANG-BAJU DISTRO KEREN MODEL KEKINIAN-REAL PICT-BISA COD",
+    image: "/tiga.webp",
+  },
+  {
+    id: 4,
+    name: "TTWS M19 HEADSET BLUETOOTH WIRELESS GAMING TWS 5.1 + POWERBANK 3500 MAH",
+    image: "/empat.webp",
+  },
+  {
+    id: 5,
+    name: "DIVEBLUES kipas mini portable angin Kipas Lipat Portable Digital Display High-speed",
+    image: "/lima.webp",
+  },
+  {
+    id: 6,
+    name: "Dompet Wanita Aurora Bordir Premium Berkualitas Dompet Pendek Genggam",
+    image: "/enam.webp",
+  },
+  {
+    id: 7,
+    name: "MXQ PRO Android TV Box 4K HD Smart Set Top Box 64GB Ram 512GB Rom 2.4GHz/5G WiFi Connection Support External Device USB",
+    image: "/tujuh.webp",
+  },
+  {
+    id: 8,
+    name: "Sandal Pria keren Sandal slop Pria sandal Gunung Pria original 100 cowok Kulit Trendy Terkini sendal gunung pria elegan ori kece casual",
+    image: "/delapan.webp",
+  },
+];
+
 export default async function HomePage() {
-  // Tarik produk aktif dari database (maks 8 agar jumlah card konsisten).
-  // Kalau database tidak punya produk aktif, gunakan fallback statis.
-  let dbProducts: {
-    id: number;
-    name: string;
-    imageUrl: string | null;
-    price: string;
-  }[] = [];
-  try {
-    const rows = await db
-      .select({
-        id: productsTable.id,
-        name: productsTable.name,
-        imageUrl: productsTable.imageUrl,
-        price: productsTable.price,
-      })
-      .from(productsTable)
-      .where(eq(productsTable.isActive, true))
-      .orderBy(desc(productsTable.createdAt))
-      .limit(8);
-    dbProducts = rows;
-  } catch {
-    // DB error: pakai fallback agar halaman tidak crash
-  }
-
-  const useFallback = dbProducts.length === 0;
-
   // Tombol "Promosikan" mengarah ke /task untuk user login, /register untuk tamu.
   const user = await getCurrentUser();
   const promoteHref = user ? "/task" : "/register";
@@ -66,42 +77,22 @@ export default async function HomePage() {
         <PromoMarquee />
 
         <div className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-5 sm:gap-3">
-          {useFallback
-            ? fallbackProducts.map(({ id, title, icon: Icon }) => (
-                <ProductCard
-                  key={id}
-                  title={title}
-                  href={promoteHref}
-                  imageSlot={
-                    <Icon
-                      className="size-10 text-zinc-300 sm:size-14"
-                      strokeWidth={1.4}
-                    />
-                  }
+          {PROMOTED_PRODUCTS.map((p) => (
+            <ProductCard
+              key={p.id}
+              title={p.name}
+              href={promoteHref}
+              imageSlot={
+                <Image
+                  src={p.image}
+                  alt={p.name}
+                  width={400}
+                  height={400}
+                  className="h-full w-full object-cover"
                 />
-              ))
-            : dbProducts.map((p) => (
-                <ProductCard
-                  key={p.id}
-                  title={p.name}
-                  href={promoteHref}
-                  imageSlot={
-                    p.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={p.imageUrl}
-                        alt={p.name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <Package
-                        className="size-10 text-zinc-300 sm:size-14"
-                        strokeWidth={1.4}
-                      />
-                    )
-                  }
-                />
-              ))}
+              }
+            />
+          ))}
         </div>
 
         <PartnerStrip />
