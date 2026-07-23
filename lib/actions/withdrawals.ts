@@ -4,13 +4,14 @@ import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath, refresh } from "next/cache";
 import { z } from "zod";
 
+import { getCurrentUser } from "@/lib/auth/session";
+import { verifyWithdrawPassword } from "@/lib/crypto/withdraw-password";
 import {
   MAX_WITHDRAWAL_AMOUNT,
   MIN_WITHDRAWAL_AMOUNT,
 } from "@/lib/constants/withdrawal";
 import { db } from "@/lib/db";
 import { auditLogs, bankAccounts, profiles, withdrawals } from "@/lib/db/schema";
-import { getCurrentUser } from "@/lib/auth/session";
 
 const withdrawSchema = z.object({
   bankAccountId: z
@@ -83,20 +84,18 @@ export async function submitWithdrawal(
     };
   }
 
-  // Verifikasi sandi penarikan via DB (bcrypt crypt).
-  // PENTING: `withdraw_password_hash` adalah bcrypt hash, jadi tidak bisa
-  // dibandingkan langsung dengan plaintext — harus lewat `crypt()` agar
-  // plaintext di-hash dengan salt yang sama, lalu dibandingkan.
-  const [verify] = await db.execute<{ ok: boolean }>(sql`
-    SELECT (
-      withdraw_password_hash = extensions.crypt(
-        ${parsed.data.withdrawPassword},
-        withdraw_password_hash
-      )
-    ) AS ok
-    FROM profiles WHERE id = ${user.id}
-  `);
-  if (!verify?.ok) {
+  // Verifikasi sandi penarikan via bcrypt (hash disimpan di
+  // `profiles.withdraw_password_hash`, diverifikasi di Node — bukan SQL).
+  const [storedHash] = await db
+    .select({ hash: profiles.withdrawPasswordHash })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
+  const ok = await verifyWithdrawPassword(
+    parsed.data.withdrawPassword,
+    storedHash?.hash,
+  );
+  if (!ok) {
     return {
       fieldErrors: { withdrawPassword: ["Kata sandi penarikan salah."] },
     };
@@ -117,19 +116,24 @@ export async function submitWithdrawal(
     return { fieldErrors: { bankAccountId: ["Rekening tidak ditemukan."] } };
   }
 
-  // Cek saldo cukup (atomic check + decrement)
+  // Cek saldo cukup (atomic check + decrement via SQL expression di Drizzle).
   const amountStr = parsed.data.amount.toFixed(2);
-  const updated = await db.execute<{ id: string; balance: string }>(sql`
-    UPDATE profiles
-    SET balance = balance - ${amountStr}::numeric,
-        frozen_balance = frozen_balance + ${amountStr}::numeric,
-        updated_at = now()
-    WHERE id = ${user.id}
-      AND balance >= ${amountStr}::numeric
-    RETURNING id, balance
-  `);
+  const updated = await db
+    .update(profiles)
+    .set({
+      balance: sql`${profiles.balance} - ${amountStr}::numeric`,
+      frozenBalance: sql`${profiles.frozenBalance} + ${amountStr}::numeric`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(profiles.id, user.id),
+        sql`${profiles.balance} >= ${amountStr}::numeric`,
+      ),
+    )
+    .returning({ id: profiles.id, balance: profiles.balance });
 
-  if (!updated.length) {
+  if (updated.length === 0) {
     return { error: "Saldo tidak cukup." };
   }
 

@@ -8,6 +8,7 @@ import { z } from "zod";
 import { assertCanAccessMember, getScope } from "@/lib/access";
 import { auth } from "@/lib/auth";
 import { requireCurrentAdminProfile } from "@/lib/auth/session";
+import { hashWithdrawPassword } from "@/lib/crypto/withdraw-password";
 import { db } from "@/lib/db";
 import { auditLogs, profiles } from "@/lib/db/schema";
 
@@ -211,17 +212,19 @@ export async function adjustMemberBalance(
   const amountStr = parsed.data.amount.toFixed(2);
   const op = parsed.data.amount > 0 ? "+" : "-";
 
-  // Atomic update: tambah/kurangi balance
-  const result = await db.execute<{ id: string; balance: string }>(sql`
-    UPDATE profiles
-    SET balance = balance + ${amountStr}::numeric,
-        updated_at = now()
-    WHERE id = ${parsed.data.memberId}
-      AND (${parsed.data.amount}::numeric >= 0 OR balance + ${amountStr}::numeric >= 0)
-    RETURNING id, balance
-  `);
+  // Atomic update: tambah/kurangi balance (ekspresi SQL di Drizzle, bukan raw).
+  const result = await db
+    .update(profiles)
+    .set({
+      balance: sql`${profiles.balance} + ${amountStr}::numeric`,
+      updatedAt: sql`now()`,
+    })
+    .where(
+      sql`${profiles.id} = ${parsed.data.memberId} AND (${parsed.data.amount}::numeric >= 0 OR ${profiles.balance} + ${amountStr}::numeric >= 0)`,
+    )
+    .returning({ id: profiles.id, balance: profiles.balance });
 
-  if (!result.length) {
+  if (result.length === 0) {
     return { error: "Gagal memperbarui saldo (saldo tidak boleh negatif)." };
   }
 
@@ -333,19 +336,15 @@ export async function resetMemberWithdrawPassword(
     return handleAuthError(e);
   }
 
-  // Hash via PostgreSQL crypt() (bcrypt) supaya sama dengan sign-up trigger
-  const result = await db.execute<{ id: string }>(sql`
-    UPDATE profiles
-    SET withdraw_password_hash = extensions.crypt(
-          ${parsed.data.newPassword},
-          extensions.gen_salt('bf', 10)
-        ),
-        updated_at = now()
-    WHERE id = ${parsed.data.memberId}
-    RETURNING id
-  `);
+  // Hash via bcrypt (Node) — sama dengan helper yang dipakai sign-up.
+  const newHash = await hashWithdrawPassword(parsed.data.newPassword);
+  const result = await db
+    .update(profiles)
+    .set({ withdrawPasswordHash: newHash, updatedAt: new Date() })
+    .where(eq(profiles.id, parsed.data.memberId))
+    .returning({ id: profiles.id });
 
-  if (!result.length) return { error: "Anggota tidak ditemukan." };
+  if (result.length === 0) return { error: "Anggota tidak ditemukan." };
 
   await db.insert(auditLogs).values({
     actorId: adminId,

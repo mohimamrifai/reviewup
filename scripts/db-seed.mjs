@@ -1,6 +1,8 @@
 // scripts/db-seed.mjs
 
 import { randomUUID } from "node:crypto";
+
+import bcrypt from "bcryptjs";
 import { hashPassword } from "@better-auth/utils/password";
 import { config } from "dotenv";
 import postgres from "postgres";
@@ -208,13 +210,13 @@ async function ensureUser(spec) {
     )
   `;
 
+  // 6. Set sandi penarikan (bcrypt via Node — sama dengan helper aplikasi,
+  //    tidak butuh extension PostgreSQL apapun).
   if (withdrawPassword) {
+    const withdrawHash = await bcrypt.hash(withdrawPassword, 10);
     await sql`
       UPDATE profiles
-      SET withdraw_password_hash = extensions.crypt(
-        ${withdrawPassword},
-        extensions.gen_salt('bf', 10)
-      )
+      SET withdraw_password_hash = ${withdrawHash}
       WHERE id = ${userId}
     `;
   }
@@ -229,8 +231,11 @@ async function ensureUser(spec) {
 try {
   console.log("[seed] mulai...");
 
-  for (const user of SEED_USERS) {
-    await ensureUser(user);
+  // Hash sandi penarikan dilakukan di Node (bcryptjs) — tidak butuh extension
+  // pgcrypto atau Supabase-specific schema. Aman untuk PostgreSQL standar.
+
+  for (const spec of SEED_USERS) {
+    await ensureUser(spec);
   }
 
   console.log("[seed] selesai.");

@@ -1,11 +1,12 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/lib/auth";
+import { hashWithdrawPassword } from "@/lib/crypto/withdraw-password";
 import { db } from "@/lib/db";
 import { profiles, user as authUsers } from "@/lib/db/schema";
 import { registerSchema, loginSchema } from "@/lib/schemas/auth";
@@ -261,39 +262,34 @@ export async function signUp(
 
   // 2. Set field tambahan (referral, sandi penarikan) di profile.
   //    Idempotent terhadap hook database Better Auth: kalau akun sudah
-  //    pernah dibuat dan role masih 'member' default tanpa referral,
-  //    ON CONFLICT akan set saldo awal Rp30.000 + referral staff.
-  const { sql } = await import("drizzle-orm");
+  //    pernah dibuat, ON CONFLICT hanya set field yang masih kosong/null.
+  //    Hash sandi penarikan di-Node (bcrypt) — bukan SQL.
+  const withdrawHash = await hashWithdrawPassword(
+    parsed.data.sandiPenarikan,
+  );
   try {
-    await db.execute(
-      sql`
-        INSERT INTO profiles (id, username, role, balance, referred_by, withdraw_password_hash, updated_at)
-        VALUES (
-          ${createdUser.user.id},
-          ${username},
-          'member',
-          30000,
-          ${staff.id},
-          extensions.crypt(
-            ${parsed.data.sandiPenarikan},
-            extensions.gen_salt('bf', 10)
-          ),
-          now()
-        )
-        ON CONFLICT (id) DO UPDATE
-          SET referred_by = COALESCE(profiles.referred_by, EXCLUDED.referred_by),
-              balance = CASE
-                WHEN profiles.referred_by IS NULL AND profiles.balance = 0
-                THEN 30000
-                ELSE profiles.balance
-              END,
-              withdraw_password_hash = COALESCE(
-                profiles.withdraw_password_hash,
-                EXCLUDED.withdraw_password_hash
-              ),
-              updated_at = now()
-      `,
-    );
+    await db
+      .insert(profiles)
+      .values({
+        id: createdUser.user.id,
+        username,
+        role: "member",
+        balance: "30000",
+        referredBy: staff.id,
+        withdrawPasswordHash: withdrawHash,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: profiles.id,
+        set: {
+          // Jangan timpa referral/withdraw-password yang sudah ada.
+          referredBy: sql`COALESCE(${profiles.referredBy}, EXCLUDED.referred_by)`,
+          withdrawPasswordHash: sql`COALESCE(${profiles.withdrawPasswordHash}, EXCLUDED.withdraw_password_hash)`,
+          // Saldo awal 30rb hanya untuk akun baru yang belum punya referral.
+          balance: sql`CASE WHEN ${profiles.referredBy} IS NULL AND ${profiles.balance} = 0 THEN 30000 ELSE ${profiles.balance} END`,
+          updatedAt: sql`now()`,
+        },
+      });
   } catch (error) {
     console.error("[signUp] profile sync error:", { username, error });
     try {

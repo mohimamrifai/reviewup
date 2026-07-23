@@ -1,12 +1,17 @@
 "use server";
 
-import { sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath, refresh } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth";
+import {
+  hashWithdrawPassword,
+  verifyWithdrawPassword,
+} from "@/lib/crypto/withdraw-password";
 import { db } from "@/lib/db";
+import { profiles } from "@/lib/db/schema";
 
 const loginSchema = z
   .object({
@@ -115,32 +120,27 @@ export async function changeWithdrawPassword(
     return { error: "Sesi habis, silakan login ulang." };
   }
 
-  // Verifikasi sandi penarikan lama (bcrypt crypt — hash tidak bisa
-  // dibandingkan langsung dengan plaintext, harus lewat `crypt()`).
-  const [verify] = await db.execute<{ ok: boolean }>(sql`
-    SELECT (
-      withdraw_password_hash = extensions.crypt(
-        ${parsed.data.currentPassword},
-        withdraw_password_hash
-      )
-    ) AS ok
-    FROM profiles WHERE id = ${user.id}
-  `);
-  if (!verify?.ok) {
+  // Verifikasi sandi penarikan lama via bcrypt (Node), bukan SQL.
+  const [stored] = await db
+    .select({ hash: profiles.withdrawPasswordHash })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
+  const ok = await verifyWithdrawPassword(
+    parsed.data.currentPassword,
+    stored?.hash,
+  );
+  if (!ok) {
     return { fieldErrors: { currentPassword: ["Sandi penarikan lama salah."] } };
   }
 
-  const updated = await db.execute<{ id: string }>(sql`
-    UPDATE profiles
-    SET withdraw_password_hash = extensions.crypt(
-          ${parsed.data.newPassword},
-          extensions.gen_salt('bf', 10)
-        ),
-        updated_at = now()
-    WHERE id = ${user.id}
-    RETURNING id
-  `);
-  if (!updated.length) {
+  const newHash = await hashWithdrawPassword(parsed.data.newPassword);
+  const updated = await db
+    .update(profiles)
+    .set({ withdrawPasswordHash: newHash, updatedAt: new Date() })
+    .where(eq(profiles.id, user.id))
+    .returning({ id: profiles.id });
+  if (updated.length === 0) {
     return { error: "Gagal memperbarui sandi penarikan." };
   }
 
