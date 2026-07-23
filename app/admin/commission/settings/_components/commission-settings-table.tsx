@@ -16,7 +16,7 @@ const inputClass =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 sm:text-sm";
 
 const headerCellClass =
-  "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-600 sm:px-4 sm:py-3 sm:text-xs";
+  "px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-zinc-600 sm:px-4 sm:py-3 sm:text-xs ";
 
 const cellClass =
   "px-3 py-2 text-xs text-zinc-700 sm:px-4 sm:py-3 sm:text-sm";
@@ -90,7 +90,6 @@ export function CommissionSettingsTable({ initialRows }: { initialRows: Row[] })
         <thead className="bg-zinc-100">
           <tr>
             <th className={headerCellClass}>Level</th>
-            <th className={headerCellClass}>Default</th>
             <th className={headerCellClass}>Aktif Saat Ini</th>
             <th className={headerCellClass}>Edit</th>
           </tr>
@@ -103,13 +102,10 @@ export function CommissionSettingsTable({ initialRows }: { initialRows: Row[] })
                 key={r.level}
                 className="border-t border-zinc-200 transition hover:bg-zinc-50/60"
               >
-                <td className={`${cellClass} font-medium text-zinc-900`}>
+                <td className={`${cellClass} font-medium text-zinc-900 text-center`}>
                   {r.label}
                 </td>
-                <td className={`${cellClass} text-zinc-500`}>
-                  {r.defaultPercent}%
-                </td>
-                <td className={cellClass}>
+                <td className={`${cellClass} text-center`}>
                   {overridden ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 sm:text-xs">
                       {r.currentPercent}%

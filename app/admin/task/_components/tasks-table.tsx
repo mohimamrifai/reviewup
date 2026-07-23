@@ -8,6 +8,7 @@ import { AssignProductModal } from "./assign-product-modal";
 import { ConfirmTaskModal } from "./confirm-task-modal";
 import { CreateTaskModal } from "./create-task-modal";
 import { TaskStatusModal } from "./task-status-modal";
+import { Pagination } from "../../product/_components/pagination";
 import {
   STATUS_OPTIONS,
   aksiCellClass,
@@ -21,6 +22,8 @@ import {
 } from "./task-shared";
 import { formatRupiah } from "@/lib/format-rupiah";
 
+const ITEMS_PER_PAGE = 10;
+
 export function TasksTable({
   initialTasks,
   members = [],
@@ -33,6 +36,7 @@ export function TasksTable({
   const tasks = initialTasks;
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
+  const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<Task | null>(null);
   const [creating, setCreating] = useState(false);
   const [assigning, setAssigning] = useState<Task | null>(null);
@@ -53,45 +57,23 @@ export function TasksTable({
     });
   }, [tasks, query, statusFilter]);
 
-  const stats = useMemo(() => {
-    const total = tasks.length;
-    const selesai = tasks.filter((t) => t.status === "selesai").length;
-    const totalCommission = tasks
-      .filter((t) => t.status === "selesai")
-      .reduce((sum, t) => sum + Number(t.commission), 0);
-    return { total, selesai, totalCommission };
-  }, [tasks]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const currentPage = Math.min(page, totalPages);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginated = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  function handleQueryChange(value: string) {
+    setQuery(value);
+    setPage(1);
+  }
+  function handleStatusFilterChange(value: Status | "all") {
+    setStatusFilter(value);
+    setPage(1);
+  }
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-zinc-200/60 sm:p-4">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500 sm:text-xs">
-            Total Tugas
-          </p>
-          <p className="mt-0.5 text-xl font-bold text-zinc-900 sm:text-2xl">
-            {stats.total}
-          </p>
-        </div>
-        <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-zinc-200/60 sm:p-4">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500 sm:text-xs">
-            Selesai
-          </p>
-          <p className="mt-0.5 text-xl font-bold text-emerald-700 sm:text-2xl">
-            {stats.selesai}
-          </p>
-        </div>
-        <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-zinc-200/60 sm:p-4">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500 sm:text-xs">
-            Total Komisi
-          </p>
-          <p className="mt-0.5 text-xl font-bold text-indigo-700 sm:text-2xl">
-            {formatRupiah(stats.totalCommission)}
-          </p>
-        </div>
-      </div>
-
-      <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-zinc-200/60 sm:p-4">
+      <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-zinc-200/60 sm:p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="relative flex-1 sm:max-w-xs">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-zinc-400" />
@@ -99,13 +81,15 @@ export function TasksTable({
               type="text"
               placeholder="Cari member / produk..."
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => handleQueryChange(e.target.value)}
               className={`${inputClass} pl-8`}
             />
           </div>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as Status | "all")}
+            onChange={(e) =>
+              handleStatusFilterChange(e.target.value as Status | "all")
+            }
             className={`${inputClass} sm:w-auto`}
           >
             {STATUS_OPTIONS.map((o) => (
@@ -143,7 +127,7 @@ export function TasksTable({
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {paginated.length === 0 ? (
               <tr>
                 <td
                   colSpan={8}
@@ -155,12 +139,12 @@ export function TasksTable({
                 </td>
               </tr>
             ) : (
-              filtered.map((t, i) => (
+              paginated.map((t, i) => (
                 <tr
                   key={`${t.kind}-${t.id}`}
                   className="group border-t border-zinc-200 transition hover:bg-zinc-50/60"
                 >
-                  <td className={cellClass}>{i + 1}</td>
+                  <td className={cellClass}>{startIndex + i + 1}</td>
                   <td className={`${cellClass} font-medium text-zinc-900`}>
                     {t.memberUsername}
                   </td>
@@ -222,6 +206,19 @@ export function TasksTable({
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="flex flex-col items-center justify-between gap-2 rounded-xl bg-white p-3 shadow-sm ring-1 ring-zinc-200/60 sm:flex-row sm:p-4">
+        <span className="text-xs text-zinc-500 sm:text-sm">
+          Menampilkan{" "}
+          {paginated.length === 0 ? 0 : startIndex + 1}–
+          {startIndex + paginated.length} dari {filtered.length} tugas
+        </span>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setPage}
+        />
       </div>
 
       {editing && (
