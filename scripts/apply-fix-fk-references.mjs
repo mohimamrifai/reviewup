@@ -24,7 +24,7 @@ if (!url) {
   process.exit(1);
 }
 
-const sql = postgres(url, { prepare: false, max: 1 });
+const sql = postgres(url, { prepare: false, max: 1, search_path: "public" });
 
 /**
  * Cari semua FK constraint pada kolom tertentu di tabel tertentu.
