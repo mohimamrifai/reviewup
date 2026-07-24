@@ -14,6 +14,10 @@ export type DateRange = {
 export type DashboardStats = {
   totalMembers: number;
   rangeRegistrations: number;
+  /**
+   * Jumlah member UNIK yang punya deposit `approved` dalam range.
+   * Reject tidak dihitung; 1 member yang deposit berkali-kali tetap dihitung 1.
+   */
   rangeDepositRequests: number;
   rangeDepositAmount: number;
   rangeWithdrawalAmount: number;
@@ -95,9 +99,12 @@ export async function getDashboardStats(
   const inRange = (col: AnyPgColumn): SQL | undefined =>
     and(gte(col, activityRange.from), lte(col, activityRange.to));
   const profileRangeCondition = inRange(profiles.createdAt) ?? sql`false`;
+  // Filter "Depo Awal": hanya deposit `approved` (reject di-skip) dan
+  // dihitung per-member unik (1 member yang deposit 3x tetap 1).
   const depositRangeCondition = and(
     inRange(deposits.createdAt),
     depositMemberFilter,
+    eq(deposits.status, "approved"),
   ) ?? sql`false`;
   const approvedDepositRangeCondition = and(
     eq(deposits.status, "approved"),
@@ -130,7 +137,7 @@ export async function getDashboardStats(
       .where(and(eq(profiles.role, "member"), memberFilter)),
     db
       .select({
-        rangeDepositRequests: sql<number>`COUNT(*) FILTER (WHERE ${depositRangeCondition})::int`,
+        rangeDepositRequests: sql<number>`COUNT(DISTINCT ${deposits.memberId}) FILTER (WHERE ${depositRangeCondition})::int`,
         rangeDepositAmount: sql<string>`COALESCE(SUM(${deposits.amount}) FILTER (WHERE ${approvedDepositRangeCondition}), 0)`,
         totalDepositAmount: sql<string>`COALESCE(SUM(${deposits.amount}) FILTER (WHERE ${approvedDepositTotalCondition}), 0)`,
       })
