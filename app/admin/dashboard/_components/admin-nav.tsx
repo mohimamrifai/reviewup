@@ -36,6 +36,11 @@ type Item = {
    * Super Admin otomatis lolos.
    */
   requiresChannelCrud?: boolean;
+  /**
+   * Butuh izin `depositBankCrud` di access_overrides (khusus admin leader).
+   * Super Admin otomatis lolos.
+   */
+  requiresDepositBankCrud?: boolean;
 };
 
 type Section = {
@@ -71,7 +76,7 @@ const sections: Section[] = [
         label: "Tujuan Deposit",
         href: "/admin/deposit-bank",
         icon: Landmark,
-        leaderOrSuperOnly: true,
+        requiresDepositBankCrud: true,
       },
     ],
   },
@@ -129,12 +134,14 @@ type Props = {
   isSuperAdmin?: boolean;
   isLeader?: boolean;
   canManageChannels?: boolean;
+  canManageDepositBankCrud?: boolean;
 };
 
 export function AdminNav({
   isSuperAdmin = false,
   isLeader = false,
   canManageChannels = false,
+  canManageDepositBankCrud = false,
 }: Props) {
   const pathname = usePathname() ?? "";
   const [open, setOpen] = useState(false);
@@ -149,11 +156,14 @@ export function AdminNav({
           if (i.superAdminOnly && !isSuperAdmin) return false;
           if (i.leaderOrSuperOnly && !isSuperAdmin && !isLeader) return false;
           if (i.requiresChannelCrud && !canManageChannels) return false;
+          if (i.requiresDepositBankCrud && !canManageDepositBankCrud) {
+            return false;
+          }
           return true;
         }),
       }))
       .filter((s) => s.items.length > 0);
-  }, [isSuperAdmin, isLeader, canManageChannels]);
+  }, [isSuperAdmin, isLeader, canManageChannels, canManageDepositBankCrud]);
 
   // Tentukan href yang sedang aktif (match persis atau prefix nested).
   // Digunakan untuk highlight link & buka otomatis section berisi halaman aktif.

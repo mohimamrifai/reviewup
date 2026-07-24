@@ -39,10 +39,14 @@ export default async function AdminLayout({ children }: Props) {
 
   // Super Admin selalu boleh; admin leader/staff hanya jika Super Admin
   // mengaktifkan override `channelCrud` di halaman Izin Akses.
+  // Sama hal-nya untuk `depositBankCrud` (khusus admin leader, bukan staff).
   const overrides = (profile.accessOverrides ?? {}) as {
     channelCrud?: boolean;
+    depositBankCrud?: boolean;
   };
   const canManageChannels = isSuperAdmin || overrides.channelCrud === true;
+  const canManageDepositBankCrud =
+    isSuperAdmin || (isLeader && overrides.depositBankCrud === true);
 
   return (
     <div className="min-h-screen bg-zinc-100 text-zinc-900 sm:pl-60">
@@ -50,6 +54,7 @@ export default async function AdminLayout({ children }: Props) {
         isSuperAdmin={isSuperAdmin}
         isLeader={isLeader}
         canManageChannels={canManageChannels}
+        canManageDepositBankCrud={canManageDepositBankCrud}
       />
       {children}
     </div>
