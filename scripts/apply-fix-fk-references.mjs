@@ -29,8 +29,14 @@ const sql = postgres(url, { prepare: false, max: 1, search_path: "public" });
 /**
  * Cari semua FK constraint pada kolom tertentu di tabel tertentu.
  * Return array nama constraint.
+ *
+ * Pakai schema-qualified name `public.<table>` di `regclass` cast supaya
+ * tidak bergantung pada `search_path` (beberapa role DB tidak punya
+ * `public` di search_path sehingga unqualified cast gagal dengan
+ * "column X does not exist").
  */
 async function findFkOnColumn({ table, column }) {
+  const qualified = `public.${table}`;
   return await sql`
     SELECT conname AS name,
            conrelid::regclass::text AS table_name,
@@ -39,10 +45,10 @@ async function findFkOnColumn({ table, column }) {
     JOIN pg_namespace n ON n.oid = c.connamespace
     WHERE c.contype = 'f'
       AND n.nspname = 'public'
-      AND c.conrelid = ${sql(table)}::regclass
+      AND c.conrelid = ${qualified}::regclass
       AND c.conkey = ARRAY[
         (SELECT attnum FROM pg_attribute
-         WHERE attrelid = ${sql(table)}::regclass
+         WHERE attrelid = ${qualified}::regclass
            AND attname = ${column})
       ]::smallint[]
   `;
