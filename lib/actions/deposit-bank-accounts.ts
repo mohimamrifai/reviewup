@@ -192,8 +192,9 @@ export async function deleteDepositBankAccount(
 
   await db.insert(auditLogs).values({
     actorId: user.id,
+    targetId: null,
     action: "DEPOSIT_BANK_DELETED",
-    targetId: accountId.toString(),
+    note: `account_id=${accountId}`,
   });
 
   revalidatePath("/admin/deposit-bank");
