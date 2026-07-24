@@ -24,7 +24,7 @@ if (!url) {
   process.exit(1);
 }
 
-const sql = postgres(url, { prepare: false, max: 1, search_path: "public" });
+const client = postgres(url, { prepare: false, max: 1, search_path: "public" });
 
 /**
  * Cari semua FK constraint pada kolom tertentu di tabel tertentu.
@@ -37,7 +37,7 @@ const sql = postgres(url, { prepare: false, max: 1, search_path: "public" });
  */
 async function findFkOnColumn({ table, column }) {
   const qualified = `public.${table}`;
-  return await sql`
+  return await client`
     SELECT conname AS name,
            conrelid::regclass::text AS table_name,
            confrelid::regclass::text AS ref_table
@@ -58,7 +58,7 @@ async function findFkOnColumn({ table, column }) {
  * Cek apakah constraint tertentu sudah ada.
  */
 async function constraintExists(name) {
-  const rows = await sql`
+  const rows = await client`
     SELECT 1 FROM pg_constraint WHERE conname = ${name} LIMIT 1
   `;
   return rows.length > 0;
@@ -76,8 +76,10 @@ async function ensureFkToProfiles({ table, column, constraintName }) {
       console.log(
         `[fix-fk]   dropping FK ${row.name} (${table}.${column} -> ${row.ref_table})`
       );
-      await sql.unsafe(
-        `ALTER TABLE public.${table} DROP CONSTRAINT IF EXISTS ${sql.ident(row.name)}`
+      // Constraint name dan column name berasal dari DB (bukan input user),
+      // jadi interpolasi langsung aman.
+      await client.unsafe(
+        `ALTER TABLE public.${table} DROP CONSTRAINT IF EXISTS "${row.name}"`
       );
     }
   }
@@ -91,10 +93,10 @@ async function ensureFkToProfiles({ table, column, constraintName }) {
   console.log(
     `[fix-fk]   adding FK ${constraintName} (${table}.${column} -> profiles.id) ON DELETE SET NULL`
   );
-  await sql.unsafe(
+  await client.unsafe(
     `ALTER TABLE public.${table}
-     ADD CONSTRAINT ${sql.ident(constraintName)}
-     FOREIGN KEY (${sql.ident(column)}) REFERENCES public.profiles(id) ON DELETE SET NULL`
+     ADD CONSTRAINT "${constraintName}"
+     FOREIGN KEY ("${column}") REFERENCES public.profiles(id) ON DELETE SET NULL`
   );
 }
 
@@ -107,7 +109,7 @@ try {
     { table: "commission_settings", column: "updated_by" },
   ];
   for (const { table, column } of required) {
-    const colCheck = await sql`
+    const colCheck = await client`
       SELECT 1
       FROM information_schema.columns
       WHERE table_schema = 'public'
@@ -123,7 +125,7 @@ try {
   }
 
   // Sanity: profiles.id harus ada.
-  const profileCheck = await sql`
+  const profileCheck = await client`
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'id'
     LIMIT 1
@@ -160,5 +162,5 @@ try {
   console.error("[fix-fk] gagal:", err instanceof Error ? err.message : err);
   process.exitCode = 1;
 } finally {
-  await sql.end();
+  await client.end();
 }
