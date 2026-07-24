@@ -65,8 +65,9 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(url);
     }
     // Non-member (admin_staff / admin_leader / super_admin) yang akses
-    // halaman member akan dilempar ke dashboard admin. Role di-set di
-    // user_metadata saat signup (lihat lib/actions/auth.ts & admin-users.ts).
+    // halaman member akan dilempar ke dashboard admin. Role diset di
+    // kolom `public.user.role` saat signup (lihat lib/actions/auth.ts
+    // & admin-users.ts).
     if (role !== "member") {
       const url = request.nextUrl.clone();
       url.pathname = role ? "/admin/dashboard" : "/admin/login";

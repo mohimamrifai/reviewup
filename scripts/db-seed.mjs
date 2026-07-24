@@ -263,7 +263,7 @@ try {
   await resetDatabase();
 
   // Hash sandi penarikan dilakukan di Node (bcryptjs) — tidak butuh extension
-  // pgcrypto atau Supabase-specific schema. Aman untuk PostgreSQL standar.
+  // PostgreSQL apapun. Aman untuk semua provider Postgres standar.
 
   for (const spec of SEED_USERS) {
     await ensureUser(spec);

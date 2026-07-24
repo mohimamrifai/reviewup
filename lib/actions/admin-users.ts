@@ -828,9 +828,6 @@ export async function setStaffLeader(
     .set({ leaderId: newLeaderId, updatedAt: new Date() })
     .where(eq(profiles.id, staffId));
 
-  // Sinkronkan user_metadata di Supabase Auth supaya trigger
-  // `handle_new_user` (jika dipanggil ulang) tetap menulis leader_id
-  // yang benar. Pakai admin client (bypass RLS).
   await db.insert(auditLogs).values({
     actorId: actor.actorId,
     targetId: staffId,

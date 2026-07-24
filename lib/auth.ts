@@ -1,9 +1,6 @@
 /**
  * Better Auth server instance.
  *
- * Migrasi dari Supabase Auth. Lihat:
- *   docs/superpowers/specs/2026-07-20-better-auth-migration-design.md
- *
  * Plugin:
  *  - `username` — auth via username + password (no email required).
  *  - `additionalFields.username` — agar field `username` tersedia di

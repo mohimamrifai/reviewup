@@ -3,15 +3,12 @@ import {
   bigserial,
   boolean,
   index,
-  pgSchema,
   pgTable,
   text,
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
 
-const authSchema = pgSchema("auth");
-const authUsers = authSchema.table("users", { id: uuid("id").primaryKey() });
 import { profiles } from "./profiles";
 
 /**
@@ -44,7 +41,7 @@ export const depositBankAccounts = pgTable(
     leaderId: uuid("leader_id").references(() => profiles.id, {
       onDelete: "set null",
     }),
-    createdBy: uuid("created_by").references(() => authUsers.id, {
+    createdBy: uuid("created_by").references(() => profiles.id, {
       onDelete: "set null",
     }),
     createdAt: timestamp("created_at", { withTimezone: true })
