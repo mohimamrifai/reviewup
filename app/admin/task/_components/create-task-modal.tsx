@@ -39,7 +39,9 @@ export function CreateTaskModal({
   useModalEscape(onClose);
 
   const activeProducts = products.filter((p) => p.isActive);
-  const availableMembers = members.filter((m) => m.status !== "banned");
+  // Semua member di-scope (termasuk yang penarikannya dikunci) boleh
+  // menerima tugas — lihat JSDoc di `lib/actions/tasks-admin.ts`.
+  const availableMembers = members;
 
   return (
     <div

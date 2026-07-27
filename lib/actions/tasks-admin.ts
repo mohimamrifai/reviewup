@@ -11,6 +11,25 @@ import { type Level, getCommissionRate } from "@/lib/levels";
 import { auditLogs, products, profiles, taskRequests, tasks } from "@/lib/db/schema";
 import { getCurrentProfile } from "@/lib/auth/session";
 
+/**
+ * IMPORTANT — Design intent (jangan dilanggar tanpa diskusi owner produk):
+ *
+ * Aksi-aksi admin di file ini (createTask, assignProduct) TIDAK melakukan
+ * pengecekan `status === "banned"` atau `withdrawLockReason` pada member
+ * target. Artinya: admin BOLEH membuat/menugaskan tugas ke member yang
+ * penarikannya sedang dikunci (`status = "banned"` dari
+ * `setMemberWithdrawLock` atau auto-ban reject withdrawal).
+ *
+ * Yang TETAP dilakukan di file ini:
+ * 1. Caller adalah admin (bukan member).
+ * 2. Scope check — admin hanya boleh menugaskan member di timnya.
+ * 3. Target harus role `member` (bukan admin/staff/leader).
+ * 4. Produk target harus aktif.
+ *
+ * Lihat juga: `lib/actions/tasks-member.ts` (sisi member) dan helper
+ * `isWithdrawLocked` di `lib/access.ts`.
+ */
+
 const statusSchema = z.object({
   taskId: z.coerce.number().int().positive("ID tugas tidak valid."),
   status: z.enum(
@@ -438,13 +457,13 @@ export async function createTask(
     return handleAuthError(e);
   }
 
-  // Validasi member: harus role 'member' dan tidak 'banned'
+  // Validasi member: harus role 'member'. Status lock withdraw TIDAK
+  // memblokir penugasan tugas — lihat file-level JSDoc.
   const [member] = await db
     .select({
       id: profiles.id,
       role: profiles.role,
       level: profiles.level,
-      status: profiles.status,
     })
     .from(profiles)
     .where(eq(profiles.id, parsed.data.memberId))
@@ -452,9 +471,6 @@ export async function createTask(
   if (!member) return { error: "Anggota tidak ditemukan." };
   if (member.role !== "member") {
     return { error: "Tugas hanya bisa diberikan ke anggota (member)." };
-  }
-  if (member.status === "banned") {
-    return { error: "Anggota ini sedang diblokir. Buka blokir terlebih dahulu." };
   }
 
   // Validasi produk: harus aktif
@@ -563,16 +579,14 @@ export async function assignProduct(
     return handleAuthError(e);
   }
 
-  // Validasi member: harus role 'member' dan tidak 'banned'
+  // Validasi member: harus role 'member'. Status lock withdraw TIDAK
+  // memblokir penugasan tugas — lihat file-level JSDoc.
   const [member] = await db
-    .select({ level: profiles.level, status: profiles.status })
+    .select({ level: profiles.level })
     .from(profiles)
     .where(eq(profiles.id, requestRow.memberId))
     .limit(1);
   if (!member) return { error: "Anggota tidak ditemukan." };
-  if (member.status === "banned") {
-    return { error: "Anggota ini sedang diblokir. Buka blokir terlebih dahulu." };
-  }
 
   // Validasi produk: harus aktif. Ambil harga langsung dari produk.
   const [product] = await db
