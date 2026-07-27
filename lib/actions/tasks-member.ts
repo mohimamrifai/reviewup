@@ -7,6 +7,21 @@ import { db } from "@/lib/db";
 import { auditLogs, profiles, taskRequests, tasks } from "@/lib/db/schema";
 import { getCurrentUser } from "@/lib/auth/session";
 
+/**
+ * IMPORTANT — Design intent (jangan dilanggar tanpa diskusi owner produk):
+ *
+ * Aksi-aksi di file ini HANYA melakukan dua validasi:
+ * 1. Caller adalah `member` (bukan admin/staff).
+ * 2. Member tidak sedang punya request/tugas aktif lain.
+ *
+ * TIDAK ada pengecekan `status === "banned"` atau `withdrawLockReason`.
+ * Artinya: member yang penarikannya dikunci (`status = "banned"` dari
+ * `setMemberWithdrawLock` atau auto-ban reject withdrawal) tetap BOLEH
+ * request dan submit tugas. Hanya `submitWithdrawal` di
+ * `lib/actions/withdrawals.ts` yang di-block. Lihat juga helper
+ * `isWithdrawLocked` di `lib/access.ts`.
+ */
+
 export type TaskRequestState = {
   error?: string;
   hasExisting?: boolean;

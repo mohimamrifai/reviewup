@@ -3,6 +3,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { bankAccounts, profiles } from "@/lib/db/schema";
 import { getCurrentUser } from "@/lib/auth/session";
+import { isWithdrawLocked } from "@/lib/access";
 
 import { BottomNav } from "../_components/bottom-nav";
 import { WithdrawContent } from "./_components/withdraw-content";
@@ -47,9 +48,9 @@ export default async function WithdrawPage() {
       ),
   ]);
 
-  const isWithdrawLocked = profile?.status === "banned";
+  const isLocked = isWithdrawLocked(profile);
   const lockReason =
-    isWithdrawLocked && profile?.withdrawLockReason
+    isLocked && profile?.withdrawLockReason
       ? profile.withdrawLockReason
       : null;
 
@@ -67,7 +68,7 @@ export default async function WithdrawPage() {
           balance={profile?.balance ?? "0"}
           frozenBalance={profile?.frozenBalance ?? "0"}
           banks={banks}
-          isWithdrawLocked={isWithdrawLocked}
+          isWithdrawLocked={isLocked}
           withdrawLockReason={lockReason}
         />
       </div>

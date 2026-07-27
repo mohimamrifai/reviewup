@@ -21,6 +21,28 @@ import { profiles } from "@/lib/db/schema";
 export type AdminRole = "super_admin" | "admin_leader" | "admin_staff" | "member";
 
 /**
+ * Sumber kebenaran untuk status lock penarikan member.
+ *
+ * `status = "banned"` digunakan untuk menandakan bahwa penarikan member
+ * sedang di-block. Flag ini di-set oleh:
+ * - `setMemberWithdrawLock` (admin toggle manual, bisa dengan/tanpa alasan)
+ * - `withdrawals-admin.ts` (auto-ban saat reject withdrawal dengan alasan
+ *   "rekening tidak valid" / "penipuan" / "akun mencurigakan")
+ *
+ * PENTING (design intent):
+ * Status ini HANYA men-block penarikan, BUKAN akses tugas. Member yang
+ * penarikannya dikunci tetap boleh request dan submit tugas via
+ * `requestTask` / `submitTask` (lihat JSDoc di tasks-member.ts). Jangan
+ * menambahkan check `status === "banned"` di alur tugas tanpa diskusi
+ * dengan owner produk.
+ */
+export function isWithdrawLocked(
+  profile: { status: string | null } | null | undefined,
+): boolean {
+  return profile?.status === "banned";
+}
+
+/**
  * Override flag yang dapat disetel Super Admin per-admin di `access_overrides`.
  */
 export type AccessOverrides = {

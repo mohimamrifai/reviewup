@@ -4,6 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath, refresh } from "next/cache";
 import { z } from "zod";
 
+import { isWithdrawLocked } from "@/lib/access";
 import { getCurrentUser } from "@/lib/auth/session";
 import { verifyWithdrawPassword } from "@/lib/crypto/withdraw-password";
 import {
@@ -75,7 +76,7 @@ export async function submitWithdrawal(
     .from(profiles)
     .where(eq(profiles.id, user.id))
     .limit(1);
-  if (me?.status === "banned") {
+  if (isWithdrawLocked(me)) {
     const reason = me.withdrawLockReason?.trim();
     return {
       error: reason
